@@ -52,8 +52,8 @@ def calculate_diameter_velocity_loss(volumeflow, htemp, ltemp, length, pipe_info
     '''
     DN_list = pipe_info['DN']   # Liste der  Nenndurchmesser
     di_list = pipe_info['di']   # Liste der Innendurchmesser
-    U_list = pipe_info['U-Wert'] # Liste der Wärmeübergangskoeffizienten
-    v_list = pipe_info['Geschwindigkeit'] # Liste der max. Geschwindigkeit je Rohr
+    U_list = pipe_info['U-Value'] # Liste der Wärmeübergangskoeffizienten
+    v_list = pipe_info['v_max'] # Liste der max. Geschwindigkeit je Rohr
 
     mtemp = (htemp+ltemp)/2
     K = mtemp - 10  # Außentemperatur wird als 10°C angenommen (unterirdische Installation)
@@ -76,8 +76,11 @@ def calculate_diameter_velocity_loss(volumeflow, htemp, ltemp, length, pipe_info
     return DN, v, loss
 
 class Streets:
-    def __init__(self, path):
-        self.gdf = gpd.read_file(path)
+    def __init__(self, path, layer = None):
+        if layer == None:
+            self.gdf = gpd.read_file(path)
+        else: 
+            self.gdf = gpd.read_file(path, layer=layer)
 
     def add_connection_to_streets(self, buildings, sources):
         '''
@@ -113,9 +116,14 @@ class Streets:
                         self.gdf.at[street_id, 'geometry'] = LineString(line_coords)
 
 class Source:
-    def __init__(self, path):
-        self.primary = gpd.read_file(path)
-        self.gdf = gpd.read_file(path)  # hier werden im Verlauf die zusätzlichen Heizzentralen hinzugefügt, falls mit unterschiedlichen Gebieten gerechnet wird.
+    def __init__(self, path, layer = None):
+        if layer == None:
+            self.gdf = gpd.read_file(path)
+        else: 
+            self.gdf = gpd.read_file(path, layer=layer)
+        
+        #self.primary = gpd.read_file(path)
+        #self.gdf = gpd.read_file(path)  # hier werden im Verlauf die zusätzlichen Heizzentralen hinzugefügt, falls mit unterschiedlichen Gebieten gerechnet wird.
 
     def closest_points_sources(self, streets):
         '''
@@ -150,8 +158,11 @@ class Source:
             self.gdf.at[index, 'street_id'] = int(id)
 
 class Buildings:
-    def __init__(self, path, heat_att):
-        self.buildings_all = gpd.read_file(path)
+    def __init__(self, path, heat_att, layer = None):
+        if layer == None:
+            self.buildings_all = gpd.read_file(path)
+        else: 
+            self.buildings_all = gpd.read_file(path, layer=layer)
         
         # Nur Gebäude mit Wärmeverbrauch
         try:
@@ -397,7 +408,7 @@ class Net:
             data['velocity'] = velocity
             data['loss'] = loss
 
-    def network_analysis(self, G, buildings, sources, pipe_info, power_att, weight='length'):
+    def network_analysis(self, G, buildings, sources, pipe_info, power_att, weight='length', progressBar=None):
         '''Berechnet das Netz, indem der kürzeste Pfad zu jedem Gebäude gesucht wird'''
 
         start_point = (sources['geometry'][0].x, sources['geometry'][0].y)
