@@ -551,14 +551,14 @@ class Net:
 class Result:
     def __init__(self,path):
         self.result_list = [] # Liste der Ergebnisse [Netz1, Netz2,..., Zusammenfassung, Vergleich]
-        self.sum_list = [] # Liste für Dummenliste der Netze (benötigt für Vergleich)
-        self.excel_path = path # Pfad zur Ergebnisdatei
+        self.sum_list = [] # Liste für Summenliste der Netze (benötigt für Vergleich)
+        self.path = path # Pfad zur Ergebnisdatei
 
     def create_data_dict(self, buildings, net, types, dn_list, heat_att, h_temp, l_temp):
         '''
         Legt ein dictionary für die Ergebnisse in excel an
         buildings: Gebäude data frame
-        net: Netz-Graph
+        net: Netz data frame
         types: Gebäudetypen
         dn_list: Liste mit möglichen Rohrurchmessern
         '''
@@ -579,11 +579,8 @@ class Result:
             return result
         
         # Kumulierte Gebäude. Wärmebedarf und Anzahl pro Lastprofil
-        
-        #kum_b = buildings.groupby('Lastprofil').agg({wvbr_att: 'sum', 'count': 'sum'}).reset_index()
         kum_b = buildings.groupby('Lastprofil').agg({heat_att: 'sum'}).reset_index()
-        kum_b['count'] = buildings.groupby('Lastprofil').size().reset_index(name='count')['count']
-
+        kum_b['count'] = buildings.groupby('Lastprofil').count().reset_index()['count']
 
         kum_b[heat_att]/=1000 #MW
         
@@ -602,8 +599,8 @@ class Result:
         # Sortieren
         df_sorted = df.sort_values(by='Lastprofil', key=lambda x: x.map({val: i for i, val in enumerate(types)}))
 
-        # Netz-Graph zu df
-        gdf = net.gdf.copy()
+        # power in MW
+        gdf = net.copy()
         gdf['power_GLF']/=1000 #MW
         # Kumulierte DN-Werte
         kum_dn = gdf.groupby('DN').agg({'length': 'sum', 'loss': 'sum'}).reset_index()
@@ -640,99 +637,101 @@ class Result:
         # Fügt die Summenzeile zu df hinzu
         df = pd.concat([df, df_sum])
 
-        self.result_list.append(df)
-        sum_row['Typ']=net_name
-        self.sum_list.append(sum_row)
+        self.gdf = df
+
+        # self.result_list.append(df)
+        # sum_row['Typ']=net_name
+        # self.sum_list.append(sum_row)
     
-    def safe_in_excel(self, col = 0, index_bool=False, sheet_option ='replace', sheet = 'Zusammenfassung'):
-        '''
-        Speichert das DataFrame df in einer Exceltabelle unter filename
-        df: DataFrame
-        col: Startspalte
-        index_bool: einstellen, ob das df mit oder ohne indices gespeichert werden soll
-        filename: Pfad der Exceldatei
-        sheet: Sheet der Exceldatei in dem gespeichert werden soll
-        '''
-        # Öffnet die existierende Excel-Datei und schreibt den letzten(neuesten) DataFrame der Liste in das angegebene Sheet
-        with pd.ExcelWriter(self.excel_path, engine='openpyxl', mode='a', if_sheet_exists=sheet_option) as writer:
-            self.result_list[-1].to_excel(writer, sheet_name=sheet, index=index_bool, startcol=col)
+    # def safe_in_excel(self, col = 0, index_bool=False, sheet_option ='replace', sheet = 'Zusammenfassung'):
+    #     '''
+    #     Speichert das DataFrame df in einer Exceltabelle unter filename
+    #     df: DataFrame
+    #     col: Startspalte
+    #     index_bool: einstellen, ob das df mit oder ohne indices gespeichert werden soll
+    #     filename: Pfad der Exceldatei
+    #     sheet: Sheet der Exceldatei in dem gespeichert werden soll
+    #     '''
+    #     # Öffnet die existierende Excel-Datei und schreibt den letzten(neuesten) DataFrame der Liste in das angegebene Sheet
+    #     with pd.ExcelWriter(self.path, engine='openpyxl', mode='a', if_sheet_exists=sheet_option) as writer:
+    #         self.result_list[-1].to_excel(writer, sheet_name=sheet, index=index_bool, startcol=col)
 
-        # Zellgrößen anpassen
-        wb = load_workbook(filename = self.excel_path)        
-        ws = wb[sheet]
-        for col in ws.columns:
-            max_length = 0
-            column = col[0].column_letter # Get the column name
-            for cell in col:
-                try: # Necessary to avoid error on empty cells
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = (max_length+1)
-            ws.column_dimensions[column].width = adjusted_width
-        wb.save(self.excel_path)
+    #     # Zellgrößen anpassen
+    #     wb = load_workbook(filename = self.path)        
+    #     ws = wb[sheet]
+    #     for col in ws.columns:
+    #         max_length = 0
+    #         column = col[0].column_letter # Get the column name
+    #         for cell in col:
+    #             try: # Necessary to avoid error on empty cells
+    #                 if len(str(cell.value)) > max_length:
+    #                     max_length = len(str(cell.value))
+    #             except:
+    #                 pass
+    #         adjusted_width = (max_length+1)
+    #         ws.column_dimensions[column].width = adjusted_width
+    #     wb.save(self.path)
     
-    def result(self):
-        '''Fügt die einzelnen Ergebnisse der Netze zu einem Ergebnis-DataFrame zusammen'''
-        result = self.result_list[-1]
-        for df in self.result_list[:-1]:
-            result['Trassenlänge [m]'] += df['Trassenlänge [m]']
-            result['Verlust [MWh/a]'] += df['Verlust [MWh/a]']
-        self.result_list.append(result)
+    # def result(self):
+    #     '''Fügt die einzelnen Ergebnisse der Netze zu einem Ergebnis-DataFrame zusammen'''
+    #     result = self.result_list[-1]
+    #     for df in self.result_list[:-1]:
+    #         result['Trassenlänge [m]'] += df['Trassenlänge [m]']
+    #         result['Verlust [MWh/a]'] += df['Verlust [MWh/a]']
+    #     self.result_list.append(result)
 
-    def compare_nets(self):
-        '''Vergleicht die Zusammenfassungen der Netze'''
-        # Dictionary und indices für die Zusammenfassung1 Erstellen
-        z = {
-            'Anschlussnehmer':['[n]'],
-            'Trassenlänge':['[km]'],
-            'Wärmebedarf':['[MWh/a]'],
-            'Verlust':['MWh/a'],
-            'Gesamtwärmebedarf':['MWh/a'],
-            'Max. Leistung (inkl. GLF)':['MW']
-        }
-        indices = ['Einheit']
+    # def compare_nets(self):
+    #     '''Vergleicht die Zusammenfassungen der Netze'''
+    #     # Dictionary und indices für die Zusammenfassung1 Erstellen
+    #     z = {
+    #         'Anschlussnehmer':['[n]'],
+    #         'Trassenlänge':['[km]'],
+    #         'Wärmebedarf':['[MWh/a]'],
+    #         'Verlust':['MWh/a'],
+    #         'Gesamtwärmebedarf':['MWh/a'],
+    #         'Max. Leistung (inkl. GLF)':['MW']
+    #     }
+    #     indices = ['Einheit']
         
-        for item in self.sum_list:
-            z['Anschlussnehmer'].append(item['Anzahl'])
-            z['Trassenlänge'].append(item['Trassenlänge [m]']/1000)
-            z['Wärmebedarf'].append(item['Wärmebedarf [MWh/a]'])
-            z['Verlust'].append(item['Verlust [MWh/a]'])
-            z['Gesamtwärmebedarf'].append(item['Wärmebedarf [MWh/a]']+item['Verlust [MWh/a]'])
-            z['Max. Leistung (inkl. GLF)'].append(item['Max. Leistung (inkl. GLF) [MW]'])
-            indices.append(item['Typ'])
+    #     for item in self.sum_list:
+    #         z['Anschlussnehmer'].append(item['Anzahl'])
+    #         z['Trassenlänge'].append(item['Trassenlänge [m]']/1000)
+    #         z['Wärmebedarf'].append(item['Wärmebedarf [MWh/a]'])
+    #         z['Verlust'].append(item['Verlust [MWh/a]'])
+    #         z['Gesamtwärmebedarf'].append(item['Wärmebedarf [MWh/a]']+item['Verlust [MWh/a]'])
+    #         z['Max. Leistung (inkl. GLF)'].append(item['Max. Leistung (inkl. GLF) [MW]'])
+    #         indices.append(item['Typ'])
         
-        self.result_list.append(pd.DataFrame(z,index=indices))
+    #     self.result_list.append(pd.DataFrame(z,index=indices))
 
-    def embed_image_in_excel(self, sheet_name, image_filename, row, col):
-        # Laden Sie die vorhandene Excel-Datei
-        workbook = load_workbook(self.excel_path)
+    # def embed_image_in_excel(self, sheet_name, image_filename, row, col):
+    #     # Laden Sie die vorhandene Excel-Datei
+    #     workbook = load_workbook(self.path)
 
-        # Holen Sie sich das Arbeitsblatt
-        worksheet = workbook[sheet_name]
+    #     # Holen Sie sich das Arbeitsblatt
+    #     worksheet = workbook[sheet_name]
 
-        # Fügen Sie das Bild in das Excel-Sheet ein
-        img = Image(image_filename)
-        worksheet.add_image(img, f'{chr(65 + col)}{row + 1}')
+    #     # Fügen Sie das Bild in das Excel-Sheet ein
+    #     img = Image(image_filename)
+    #     worksheet.add_image(img, f'{chr(65 + col)}{row + 1}')
 
-        # Speichern Sie die Excel-Datei
-        workbook.save(self.excel_path)
+    #     # Speichern Sie die Excel-Datei
+    #     workbook.save(self.path)
 
-    def open_excel_file(self):
-        try:
-            subprocess.Popen(['start', 'excel', self.excel_path], shell=True)
-        except Exception as e:
-            print(f"Fehler beim Öffnen der Excel-Datei: {e}")
+    # def open_excel_file(self):
+    #     try:
+    #         subprocess.Popen(['start', 'excel', self.path], shell=True)
+    #     except Exception as e:
+    #         print(f"Fehler beim Öffnen der Excel-Datei: {e}")
 
-    def project_area_map(self, buildings,streets,filename='../Projektgebiet.png'):
+    # def project_area_map(self, buildings,streets,filename='../Projektgebiet.png'):
 
-        fig, ax = plt.subplots(figsize=(5, 5))
+    #     fig, ax = plt.subplots(figsize=(5, 5))
 
-        buildings.plot(ax=ax, color='black', edgecolor='black')
-        streets.plot(ax=ax, color='grey', linewidth = 1)
+    #     buildings.plot(ax=ax, color='black', edgecolor='black')
+    #     streets.plot(ax=ax, color='grey', linewidth = 1)
 
-        ax.axis('off')
+    #     ax.axis('off')
 
-        plt.savefig(filename, bbox_inches='tight')
-        plt.show()
+    #     plt.savefig(filename, bbox_inches='tight')
+    #     plt.show()
