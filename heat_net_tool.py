@@ -21,9 +21,9 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QFileDialog
+from qgis.PyQt.QtWidgets import QAction, QFileDialog, QCompleter
 from qgis.core import QgsProject, QgsMapLayer, QgsVectorLayer
 
 # Initialize Qt resources from file resources.py
@@ -38,18 +38,9 @@ import geopandas as gpd
 import os
 from pathlib import Path
 
-# Import code for net analysis
+from .download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs
+
 from .net_analysis import get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss, Streets, Source, Buildings, Graph, Net, Result
-
-# Project path
-project_file_path = QgsProject.instance().fileName()
-project_dir = os.path.dirname(project_file_path)
-# currect path of this script
-current_dir = os.path.dirname(__file__)
-
-# Project CRS
-project_crs = QgsProject.instance().crs()
-epsg_code = project_crs.authid()
 
 class HeatNetTool:
     """QGIS Plugin Implementation."""
@@ -85,6 +76,18 @@ class HeatNetTool:
         # Check if plugin was started the first time in current QGIS session
         # Must be set in initGui() to survive plugin reloads
         self.first_start = None
+
+        
+        # Project path
+        project_file_path = QgsProject.instance().fileName()
+        self.project_dir = os.path.dirname(project_file_path)
+
+        # Project CRS
+        project_crs = QgsProject.instance().crs()
+        self.epsg_code = project_crs.authid()
+
+        # Gemarkung (Name and info of municipalities and cities in NRW)
+        self.gemarkungen_df = pd.DataFrame()
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -195,7 +198,17 @@ class HeatNetTool:
                 self.tr(u'&Heat Net Tool '),
                 action)
             self.iface.removeToolBarIcon(action)
-    
+
+    def install_package(self,package_list):
+        """installs python packages with pip"""
+        for package in package_list:
+            try:
+                # Führt den Befehl "pip install" aus, um das Paket zu installieren
+                subprocess.check_call(["pip", "install", "--upgrade", package])
+                print(f"{package} wurde erfolgreich installiert.")
+            except subprocess.CalledProcessError:
+                print(f"Fehler beim Installieren von {package}.")
+
     def select_output_file(self, dir, lineEdit, filetype):
 
         filename, _filter = QFileDialog.getSaveFileName(
@@ -253,16 +266,6 @@ class HeatNetTool:
         if layer_name in [layer.name() for layer in layers]:
             self.load_attributes_to_combobox(layer_name, getattr(self.dlg, combobox_out))
 
-    def install_package(self,package_list):
-        """installs python packages with pip"""
-        for package in package_list:
-            try:
-                # Führt den Befehl "pip install" aus, um das Paket zu installieren
-                subprocess.check_call(["pip", "install", package])
-                print(f"{package} wurde erfolgreich installiert.")
-            except subprocess.CalledProcessError:
-                print(f"Fehler beim Installieren von {package}.")
-
     def get_layer_path_from_combobox(self, combobox):
         """
         Get the path of the selected layer from the given ComboBox.
@@ -298,7 +301,7 @@ class HeatNetTool:
             return None, None
 
     def add_shapefile_to_project(self, shapefile_path):
-        """Add the generated network shapefile to the QGIS project."""
+        """Add a shapefile to the QGIS project."""
         layer_name = os.path.splitext(os.path.basename(shapefile_path))[0]
         layer = QgsVectorLayer(path = shapefile_path, baseName = layer_name, providerLib = 'ogr')
         if not layer.isValid():
@@ -306,18 +309,157 @@ class HeatNetTool:
             return
         QgsProject.instance().addMapLayer(layer)
 
-    def update_progress(self, progressBar, value):
-        progressBar.setValue(value)
+    def load_download_options(self):
+        '''download municipality and city names of NRW to comboBoxes'''
+
+        # feedback
+        self.dlg.load_label_feedback1.setText('Loading Options...')
+        self.dlg.load_label_feedback1.setStyleSheet("color: orange")
+        self.dlg.load_label_feedback1.repaint()
+
+        url = 'https://www.opengeodata.nrw.de/produkte/geobasis/lk/akt/gmk_flur_shp/'
+        zipfile = 'gmk_flur_EPSG25832_Shape.zip'
+        file_pattern = 'vg_gemarkung'
+
+        df = read_file_from_zip(url, zipfile, file_pattern, encoding = 'utf-8')
+        municipalities = sorted(df['gemeinde'].unique().tolist())
+        cities = sorted(df['name'].tolist())
+
+        # add options to comboBoxes
+        self.dlg.load_comboBox_municipality.addItems(municipalities)
+        self.dlg.load_comboBox_city.addItems(cities)
+
+        # save df for later operations
+        self.gemarkungen_df = df
+
+        # feedback
+        self.dlg.load_label_feedback1.setStyleSheet("color: green")
+        self.dlg.load_label_feedback1.setText('Loading complete!')
+
+# Main Methods
+
+    def download_files(self):
+
+        # update progressBar
+        self.dlg.load_progressBar.setValue(0)
+
+        # URLs
+        # buildings
+        url_buildings = 'https://www.opengeodata.nrw.de/produkte/umwelt_klima/klima/kwp/'
+
+        # parcels
+        url_parcels = 'https://www.wfs.nrw.de/geobasis/wfs_nw_inspire-flurstuecke_alkis'
+        layer_parcels = 'cp:CadastralParcel'
+
+        # get name from combo box
+        if self.dlg.load_radioButton_municipality.isChecked():
+            name = self.dlg.load_comboBox_municipality.currentText()
+            parameter = 'municipality'
+        elif self.dlg.load_radioButton_city.isChecked():
+            name = self.dlg.load_comboBox_city.currentText()
+            parameter = 'city'
+        else:
+            self.dlg.load_label_feedback.setText('please choose municipality or city')
+            return
+        
+        # update progressBar
+        self.dlg.load_progressBar.setValue(1)
+        
+        
+        # filter df for city/municipality name
+        filtered_df = filter_df(name, self.gemarkungen_df, parameter)
+        # add bounding box (important for downloading parcels)
+        filtered_df['bbox'] = filtered_df['geometry'].bounds.apply(
+            lambda row: (row['minx'], row['miny'], row['maxx'], row['maxy']), axis=1)
+        # city/municipality keys
+        municipality_key = filtered_df['gmdschl'][0]
+
+        # update progressBar
+        self.dlg.load_progressBar.setValue(5)
+        self.dlg.load_label_feedback.setStyleSheet("color: orange")
+        self.dlg.load_label_feedback.setText('Downloading...')
+        self.dlg.load_label_feedback.repaint()
+
+        # buildings shapes
+        all_buildings_files = file_list_from_URL(url_buildings+'index.json')
+        self.dlg.load_progressBar.setValue(10)
+        buildings_zip = search_filename(all_buildings_files, municipality_key)
+        self.dlg.load_progressBar.setValue(15)
+        buildings_file_pattern = f'WBM/WBM-NRW_{municipality_key}' # file pattern maybe has to be renamed, when changes on the website occur
+        buildings_gdf = read_file_from_zip(url_buildings, buildings_zip, buildings_file_pattern)
+
+        # update progressBar
+        self.dlg.load_progressBar.setValue(35)
+
+        # streets shapes
+        streets_file_pattern = f'WBM-Waermelinien/WBM-NRW-Waermelinien_{municipality_key}' # file pattern maybe has to be renamed, when changes on the website occur
+        streets_gdf = read_file_from_zip(url_buildings, buildings_zip, streets_file_pattern)
+
+        # update progressBar
+        self.dlg.load_progressBar.setValue(55)
+
+        # parcels
+        gdf_list_parcels=[] # if a whole municipality is selected filtered df consists of multiple cities which parcels will be saved in this list and later merged
+        for row  in filtered_df.itertuples():
+            bbox = row.bbox
+            key = row.schluessel
+            parcel_gdf_i, e = get_shape_from_wfs(url_parcels, key, bbox, layer_parcels)
+            if e == 1:
+                self.dlg.load_label_feedback.setText(f'Too many parcels for key: {key}!\nMax. 100.000 parcels can be downloaded at once\nparcels incomplete')
+            gdf_list_parcels.append(parcel_gdf_i)
+        parcels_gdf = pd.concat(gdf_list_parcels, ignore_index=True)
+
+        # update progressBar
+        self.dlg.load_progressBar.setValue(90)
+
+        # buffer(0) can sometimes repair invalid geometries
+        buildings_gdf['geometry'] = buildings_gdf['geometry'].buffer(0)
+        parcels_gdf['geometry'] = parcels_gdf['geometry'].buffer(0)
+
+        # The buildings and streets can only be downloaded at municipality level, if you only want one city, the 
+        # additional buildings are superfluous and only extend the calculation time of the following programs.
+        # Therefore, only buildings that are located on the parcels that are available at municipality level are retained
+        if parameter == 'city':
+            union = gpd.GeoDataFrame(geometry=[parcels_gdf.unary_union], crs = self.epsg_code)
+            buildings_gdf = gpd.sjoin(buildings_gdf, union, predicate='intersects')
+            streets_gdf = gpd.sjoin(streets_gdf, union, predicate='intersects')
+
+        # update progressBar
+        self.dlg.load_progressBar.setValue(98)
+
+        # path to save net shape file and results
+        buildings_path = self.dlg.load_lineEdit_buildings.text()
+        streets_path = self.dlg.load_lineEdit_streets.text()
+        parcels_path = self.dlg.load_lineEdit_parcels.text()
+
+        # save shapes
+        buildings_gdf.to_file(buildings_path)
+        streets_gdf.to_file(streets_path)
+        parcels_gdf.to_file(parcels_path)
+
+        # load layers to project
+        self.add_shapefile_to_project(parcels_path)
+        self.add_shapefile_to_project(buildings_path)
+        self.add_shapefile_to_project(streets_path)
+        
+        # update progressBar
+        self.dlg.load_progressBar.setValue(100)
+        self.dlg.load_label_feedback.setStyleSheet("color: green")
+        self.dlg.load_label_feedback.setText('Download complete!')
+
+        # except Exception as e:
+        #     self.dlg.load_label_feedback.setStyleSheet("color: red")
+        #     self.dlg.load_label_feedback.setText(f'Error downloading shapefiles: {e}')
+        #     print(f'Error downloading shapefiles: {e}')
 
     def network_analysis(self):
 
-        self.update_progress(self.dlg.net_progressBar, 0)
+        # update progressBar
+        self.dlg.net_progressBar.setValue(0)
 
         # pipe info
-        current_dir = os.path.dirname(__file__)
-        excel_file_path = Path(current_dir) / 'pipe_data.xlsx'
+        excel_file_path = Path(self.plugin_dir) / 'pipe_data.xlsx'
         pipe_info = pd.read_excel(excel_file_path, sheet_name='pipe_data')
-
         dn_list = pipe_info['DN'].to_list()
 
         # Load Profiles
@@ -332,16 +474,22 @@ class HeatNetTool:
         streets_path, streets_layer = self.get_layer_path_from_combobox(self.dlg.net_comboBox_streets)
         buildings_path, buildings_layer = self.get_layer_path_from_combobox(self.dlg.net_comboBox_buildings)
         polygon_path, polygon_layer  = self.get_layer_path_from_combobox(self.dlg.net_comboBox_polygon)
-
+        
         heat_attribute = self.dlg.net_comboBox_heat.currentText()
         power_attribute = self.dlg.net_comboBox_power.currentText()
 
-        self.update_progress(self.dlg.net_progressBar, 2)
+        # path to save net shape file and results
+        shape_path = self.dlg.net_lineEdit_net.text()
+        result_path = self.dlg.net_lineEdit_result.text()
+
+        # update progressBar
+        self.dlg.net_progressBar.setValue(2)
 
         # Instantiate classes
         buildings = Buildings(buildings_path, heat_attribute, buildings_layer)
         source = Source(source_path, source_layer)
         streets = Streets(streets_path, streets_layer)
+        result = Result(result_path)
         
         # check if polygon checkbox is checked
         if self.dlg.net_checkBox_polygon.isChecked():
@@ -360,7 +508,8 @@ class HeatNetTool:
         except:
             pass
 
-        self.update_progress(self.dlg.net_progressBar, 5)
+        # update progressBar
+        self.dlg.net_progressBar.setValue(5)
 
         # create connection points
         buildings.add_centroid()
@@ -368,31 +517,41 @@ class HeatNetTool:
         source.closest_points_sources(streets.gdf)
         streets.add_connection_to_streets(buildings.gdf, source.gdf)
 
-        self.update_progress(self.dlg.net_progressBar, 15)
+        # update progressBar
+        self.dlg.net_progressBar.setValue(15)
 
         # Graph erstellen
         graph = Graph()
         graph.create_street_network(streets.gdf)
-        self.update_progress(self.dlg.net_progressBar, 20)
         graph.connect_centroids(buildings.gdf)
-        self.update_progress(self.dlg.net_progressBar, 25)
         graph.connect_source(source.gdf)
         graph.add_attribute_length()
         #graph.test_connection(source.gdf)
 
-        self.update_progress(self.dlg.net_progressBar, 30)
+        # update progressBar
+        self.dlg.net_progressBar.setValue(25)
 
         net = Net(t_supply,t_return)
         net.network_analysis(graph.graph, buildings.gdf, source.gdf, pipe_info, power_att=power_attribute, progressBar=self.dlg.net_progressBar)
         #net.plot_network(streets.gdf,buildings.gdf,source.gdf,filename='../Netz.png')
 
+        # update progressBar
+        self.dlg.net_progressBar.setValue(90)
+
         # GeoDataFrame aus Netz erstellen
         net.ensure_power_attribute()
-        net.graph_to_gdf(crs = epsg_code)
+        net.graph_to_gdf(crs = self.epsg_code)
+
+        # result
+        result.create_data_dict(buildings.gdf, net.gdf, load_profiles, dn_list, heat_attribute, t_supply, t_return)
+        result.create_df_from_dataDict(net_name = os.path.splitext(os.path.basename(shape_path))[0])
         
-        # path to save net shape file and result
-        shape_path = self.dlg.net_lineEdit_net.text()
-        result_path = self.dlg.net_lineEdit_result.text()
+        # save result
+        filename, file_extension = os.path.splitext(result_path)
+        if file_extension == '.xlsx':
+            result.gdf.to_excel(result_path, index=False)
+        else: 
+            result.gdf.to_csv(result_path, sep=';', index=False)
 
         # save net shape
         net.gdf.to_file(shape_path)
@@ -400,8 +559,8 @@ class HeatNetTool:
         # load net as layer
         self.add_shapefile_to_project(shape_path)
         
-        self.update_progress(self.dlg.net_progressBar,100)
-
+        # update progressBar
+        self.dlg.net_progressBar.setValue(100)
 
 
     def run(self):
@@ -414,13 +573,33 @@ class HeatNetTool:
             self.dlg = HeatNetToolDialog()
 
             # install python packages
-            package_list = ['openpyxl','networkx','geopandas']
+
+            package_list = ['openpyxl','networkx','geopandas','fiona']
             self.dlg.intro_pushButton_load_packages.clicked.connect(lambda: self.install_package(package_list))
             
+            ### Load ###
+            # download options
+            self.dlg.load_pushButton_options.clicked.connect(self.load_download_options)
+
+            # shape paths
+            self.dlg.load_pushButton_buildings.clicked.connect(
+                lambda: self.select_output_file(self.project_dir, self.dlg.load_lineEdit_buildings,'*.gpkg;;*.shp'))
+            self.dlg.load_pushButton_parcels.clicked.connect(
+                lambda: self.select_output_file(self.project_dir, self.dlg.load_lineEdit_parcels,'*.gpkg;;*.shp'))
+            self.dlg.load_pushButton_streets.clicked.connect(
+                lambda: self.select_output_file(self.project_dir, self.dlg.load_lineEdit_streets,'*.gpkg;;*.shp'))
+            
+            ### Net ###
             # select output file
-            self.dlg.net_pushButton_net_output.clicked.connect(lambda: self.select_output_file(project_dir, self.dlg.net_lineEdit_net,'*.gpkg;;*.shp'))
-            self.dlg.net_pushButton_result.clicked.connect(lambda: self.select_output_file(project_dir, self.dlg.net_lineEdit_result,'*.txt'))
-        
+            self.dlg.net_pushButton_net_output.clicked.connect(
+                lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_net,'*.gpkg;;*.shp'))
+            self.dlg.net_pushButton_result.clicked.connect(
+                lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_result,'*.xlsx;;*.csv'))
+
+        ### Download Files ###
+
+        self.dlg.load_pushButton_start.clicked.connect(self.download_files)
+
         ### Network Analysis ###   
         
         # Load layers into all the comboBoxes
@@ -430,8 +609,10 @@ class HeatNetTool:
         self.load_layers_to_combobox(self.dlg.net_comboBox_polygon)
         
         # Connect signal for net_comboBox_buildings to load attributes on change
-        self.dlg.net_comboBox_buildings.currentIndexChanged.connect(lambda: self.load_attributes('net_comboBox_buildings', 'net_comboBox_heat'))
-        self.dlg.net_comboBox_buildings.currentIndexChanged.connect(lambda: self.load_attributes('net_comboBox_buildings', 'net_comboBox_power'))
+        self.dlg.net_comboBox_buildings.currentIndexChanged.connect(
+            lambda: self.load_attributes('net_comboBox_buildings', 'net_comboBox_heat'))
+        self.dlg.net_comboBox_buildings.currentIndexChanged.connect(
+            lambda: self.load_attributes('net_comboBox_buildings', 'net_comboBox_power'))
 
         self.dlg.net_pushButton_start.clicked.connect(self.network_analysis)
 
