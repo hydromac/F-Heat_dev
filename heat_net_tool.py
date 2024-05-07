@@ -24,7 +24,7 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QCompleter
-from qgis.core import QgsProject, QgsMapLayer, QgsVectorLayer
+from qgis.core import QgsField, QgsProject, QgsMapLayer, QgsVectorLayer,QgsGraduatedSymbolRenderer, QgsSymbol, QgsLineSymbol, QgsSymbolLayer, QgsRendererCategory, QgsRendererRange, QgsClassificationRange
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -39,8 +39,10 @@ import os
 from pathlib import Path
 
 from .download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs
+from .adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
+from .status_analysis import WLD, Polygons
 
-from .net_analysis import get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss, Streets, Source, Buildings, Graph, Net, Result
+from .net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
 
 class HeatNetTool:
     """QGIS Plugin Implementation."""
@@ -78,13 +80,6 @@ class HeatNetTool:
         self.first_start = None
 
         
-        # Project path
-        project_file_path = QgsProject.instance().fileName()
-        self.project_dir = os.path.dirname(project_file_path)
-
-        # Project CRS
-        project_crs = QgsProject.instance().crs()
-        self.epsg_code = project_crs.authid()
 
         # Gemarkung (Name and info of municipalities and cities in NRW)
         self.gemarkungen_df = pd.DataFrame()
@@ -215,6 +210,109 @@ class HeatNetTool:
             self.dlg, "Select output file ",dir, filetype)
         lineEdit.setText(filename)
 
+    def get_layer_path_from_combobox(self, combobox):
+        """
+        Get the path of the selected layer from the given ComboBox.
+
+        :param combobox: The QComboBox object representing the layer selection.
+        :type combobox: QComboBox
+
+        :return: The path of the selected layer.
+        :rtype: str
+        """
+        # Get the name of the selected layer from the ComboBox
+        selected_layer_name = combobox.currentText()
+
+        # Find the layer in the project
+        layers = QgsProject.instance().mapLayersByName(selected_layer_name)
+
+        if layers:
+            # Assume we take the first found layer if multiple layers have the same name
+            selected_layer = layers[0]
+            # Extract the path from the layer information
+            path = selected_layer.source()
+
+            # Check if '|' character exists in the path
+            if '|' in path:
+                # Split the path and layer name
+                path_parts = path.split('|')
+                path = path_parts[0]  # Path is the first part
+                # Layer name is the second part, remove 'layername='
+                selected_layer_name = path_parts[1].replace('layername=', '')
+
+            return path, selected_layer_name, selected_layer
+        else:
+            return None, None, None
+
+    def add_shapefile_to_project(self, shapefile_path, att=None):
+        """Add a shapefile to the QGIS project."""
+        layer_name = os.path.splitext(os.path.basename(shapefile_path))[0]
+        layer = QgsVectorLayer(path=shapefile_path, baseName=layer_name, providerLib='ogr')
+        if not layer.isValid():
+            print("Layer failed to load!")
+            return
+
+        # if att == 'hld':
+        #     # Define renderer
+        #     renderer = QgsGraduatedSymbolRenderer('HLD')
+
+        #     # Define categories
+        #     categories = []
+
+        #     # Define symbols for each category
+        #     symbol_0 = QgsLineSymbol()
+        #     symbol_0.setWidth(0.3)  # Adjust line width for category 0
+        #     categories.append(QgsRendererCategory(0.0, symbol_0, '0'))
+
+        #     symbol_1 = QgsLineSymbol()
+        #     symbol_1.setWidth(0.6)  # Adjust line width for category 1
+        #     categories.append(QgsRendererCategory(500.0, symbol_1, '0-500'))
+
+        #     symbol_2 = QgsLineSymbol()
+        #     symbol_2.setWidth(1)  # Adjust line width for category 2
+        #     categories.append(QgsRendererCategory(1200.0, symbol_2, '500-1200'))
+
+        #     symbol_3 = QgsLineSymbol()
+        #     symbol_3.setWidth(1.3)  # Adjust line width for category 3
+        #     categories.append(QgsRendererCategory(float('inf'), symbol_3, '>1200'))
+
+        #     # Apply categories to renderer
+        #     renderer.categories = categories
+        #     layer.setRenderer(renderer)
+        #     #layer.triggerRepaint()
+
+        QgsProject.instance().addMapLayer(layer)
+
+
+    def load_download_options(self):
+        '''download municipality and city names of NRW to comboBoxes'''
+
+        # feedback
+        self.dlg.load_label_feedback1.setText('Loading Options...')
+        self.dlg.load_label_feedback1.setStyleSheet("color: orange")
+        self.dlg.load_label_feedback1.repaint()
+
+        url = 'https://www.opengeodata.nrw.de/produkte/geobasis/lk/akt/gmk_flur_shp/'
+        zipfile = 'gmk_flur_EPSG25832_Shape.zip'
+        file_pattern = 'vg_gemarkung'
+
+        df = read_file_from_zip(url, zipfile, file_pattern, encoding = 'utf-8')
+        municipalities = sorted(df['gemeinde'].unique().tolist())
+        cities = sorted(df['name'].tolist())
+
+        # add options to comboBoxes
+        self.dlg.load_comboBox_municipality.addItems(municipalities)
+        self.dlg.load_comboBox_city.addItems(cities)
+
+        # save df for later operations
+        self.gemarkungen_df = df
+
+        # feedback
+        self.dlg.load_label_feedback1.setStyleSheet("color: green")
+        self.dlg.load_label_feedback1.setText('Loading complete!')
+
+    # Methods for loading layers and attributes to comboboxes
+
     def get_all_loaded_layers(self):
         """Get a list of all loaded layers in the project, including layers within groups."""
         root = QgsProject.instance().layerTreeRoot()
@@ -265,78 +363,22 @@ class HeatNetTool:
         # Load attributes to the specified combobox
         if layer_name in [layer.name() for layer in layers]:
             self.load_attributes_to_combobox(layer_name, getattr(self.dlg, combobox_out))
+    
+    def tab_change(self):
+        '''Updates when tab is changed'''
+        # Load layers into comboBoxes
+        self.load_layers_to_combobox(self.dlg.adjust_comboBox_buildings)
+        self.load_layers_to_combobox(self.dlg.adjust_comboBox_parcels)
+        self.load_layers_to_combobox(self.dlg.adjust_comboBox_streets)
+        self.load_layers_to_combobox(self.dlg.status_comboBox_streets)
+        self.load_layers_to_combobox(self.dlg.status_comboBox_parcels)
+        self.load_layers_to_combobox(self.dlg.status_comboBox_buildings)
+        self.load_layers_to_combobox(self.dlg.net_comboBox_buildings)
+        self.load_layers_to_combobox(self.dlg.net_comboBox_streets)
+        self.load_layers_to_combobox(self.dlg.net_comboBox_source)
+        self.load_layers_to_combobox(self.dlg.net_comboBox_polygon)
 
-    def get_layer_path_from_combobox(self, combobox):
-        """
-        Get the path of the selected layer from the given ComboBox.
-
-        :param combobox: The QComboBox object representing the layer selection.
-        :type combobox: QComboBox
-
-        :return: The path of the selected layer.
-        :rtype: str
-        """
-        # Get the name of the selected layer from the ComboBox
-        selected_layer_name = combobox.currentText()
-
-        # Find the layer in the project
-        layers = QgsProject.instance().mapLayersByName(selected_layer_name)
-
-        if layers:
-            # Assume we take the first found layer if multiple layers have the same name
-            selected_layer = layers[0]
-            # Extract the path from the layer information
-            path = selected_layer.source()
-
-            # Check if '|' character exists in the path
-            if '|' in path:
-                # Split the path and layer name
-                path_parts = path.split('|')
-                path = path_parts[0]  # Path is the first part
-                # Layer name is the second part, remove 'layername='
-                selected_layer_name = path_parts[1].replace('layername=', '')
-
-            return path, selected_layer_name
-        else:
-            return None, None
-
-    def add_shapefile_to_project(self, shapefile_path):
-        """Add a shapefile to the QGIS project."""
-        layer_name = os.path.splitext(os.path.basename(shapefile_path))[0]
-        layer = QgsVectorLayer(path = shapefile_path, baseName = layer_name, providerLib = 'ogr')
-        if not layer.isValid():
-            print("Layer failed to load!")
-            return
-        QgsProject.instance().addMapLayer(layer)
-
-    def load_download_options(self):
-        '''download municipality and city names of NRW to comboBoxes'''
-
-        # feedback
-        self.dlg.load_label_feedback1.setText('Loading Options...')
-        self.dlg.load_label_feedback1.setStyleSheet("color: orange")
-        self.dlg.load_label_feedback1.repaint()
-
-        url = 'https://www.opengeodata.nrw.de/produkte/geobasis/lk/akt/gmk_flur_shp/'
-        zipfile = 'gmk_flur_EPSG25832_Shape.zip'
-        file_pattern = 'vg_gemarkung'
-
-        df = read_file_from_zip(url, zipfile, file_pattern, encoding = 'utf-8')
-        municipalities = sorted(df['gemeinde'].unique().tolist())
-        cities = sorted(df['name'].tolist())
-
-        # add options to comboBoxes
-        self.dlg.load_comboBox_municipality.addItems(municipalities)
-        self.dlg.load_comboBox_city.addItems(cities)
-
-        # save df for later operations
-        self.gemarkungen_df = df
-
-        # feedback
-        self.dlg.load_label_feedback1.setStyleSheet("color: green")
-        self.dlg.load_label_feedback1.setText('Loading complete!')
-
-# Main Methods
+    # Main Methods
 
     def download_files(self):
 
@@ -385,14 +427,14 @@ class HeatNetTool:
         self.dlg.load_progressBar.setValue(10)
         buildings_zip = search_filename(all_buildings_files, municipality_key)
         self.dlg.load_progressBar.setValue(15)
-        buildings_file_pattern = f'WBM/WBM-NRW_{municipality_key}' # file pattern maybe has to be renamed, when changes on the website occur
+        buildings_file_pattern = f'WBM-NRW_{municipality_key}' # file pattern maybe has to be renamed, when changes on the website occur
         buildings_gdf = read_file_from_zip(url_buildings, buildings_zip, buildings_file_pattern)
 
         # update progressBar
         self.dlg.load_progressBar.setValue(35)
 
         # streets shapes
-        streets_file_pattern = f'WBM-Waermelinien/WBM-NRW-Waermelinien_{municipality_key}' # file pattern maybe has to be renamed, when changes on the website occur
+        streets_file_pattern = f'WBM-NRW-Waermelinien_{municipality_key}' # file pattern maybe has to be renamed, when changes on the website occur
         streets_gdf = read_file_from_zip(url_buildings, buildings_zip, streets_file_pattern)
 
         # update progressBar
@@ -452,6 +494,141 @@ class HeatNetTool:
         #     self.dlg.load_label_feedback.setText(f'Error downloading shapefiles: {e}')
         #     print(f'Error downloading shapefiles: {e}')
 
+    def adjust_files(self):
+
+        # update progressBar
+        self.dlg.adjust_progressBar.setValue(0)
+
+        self.dlg.adjust_label_feedback.setStyleSheet("color: orange")
+        self.dlg.adjust_label_feedback.setText('Calculating...')
+        self.dlg.adjust_label_feedback.repaint()
+
+        # heat demand attribute
+        heat_att = 'RW_WW'
+
+        # building age classes
+        bak_bins = [0, 1918, 1948, 1957, 1968, 1978, 1983, 1994, 2001, 9999]
+        bak_labels = ['B','C','D','E','F','G','H','I','J']
+        
+        excel_path = self.plugin_dir+'/building_info_18_10_2016.xlsx'
+        excel_building_info = pd.read_excel(excel_path,sheet_name='database')
+
+        streets_path, streets_layer_name, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_streets)
+        buildings_path, buildings_layer_name, buildings_layer_obj = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_buildings)
+        parcels_path, parcels_layer_name, parcels_layer_obj  = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_parcels)
+        
+        # update progressBar
+        self.dlg.adjust_progressBar.setValue(10)
+
+        parcels = Parcels_adj(parcels_path, self.epsg_code)
+        buildings = Buildings_adj(buildings_path, heat_att, self.epsg_code)
+        streets = Streets_adj(streets_path, self.epsg_code)
+
+        # test if buildings already have been adjusted
+        if 'Lastprofil' in buildings.gdf.columns:
+            self.dlg.adjust_progressBar.setValue(100) # update progressBar
+            self.dlg.adjust_label_feedback.setStyleSheet("color: green")
+            self.dlg.adjust_label_feedback.setText('Buildings already adjusted!')
+        else:
+            buildings.gdf = buildings.gdf[buildings.gdf[heat_att]>0].reset_index(drop=True) # only buildings with heat demand
+            self.dlg.adjust_progressBar.setValue(20) # update progressBar
+            buildings.gdf = spatial_join(buildings.gdf.copy(), parcels.gdf, ['validFrom']) # building age from parcels
+            self.dlg.adjust_progressBar.setValue(30) # update progressBar
+            buildings.add_BAK(bak_bins,bak_labels) # add building age class
+            self.dlg.adjust_progressBar.setValue(40) # update progressBar
+            buildings.add_age_LANUV() # add building age by LANUV
+            self.dlg.adjust_progressBar.setValue(50) # update progressBar
+            buildings.add_Vlh_Loadprofile(excel_building_info)
+            self.dlg.adjust_progressBar.setValue(60) # update progressBar
+            buildings.drop_unwanted()
+            buildings.add_power()
+            self.dlg.adjust_progressBar.setValue(70) # update progressBar
+            buildings.gdf['new_ID'] = buildings.gdf.index.astype('int32')
+            buildings.merge_buildings()
+
+            self.dlg.adjust_progressBar.setValue(80) # update progressBar
+            streets.round_streets()
+            self.dlg.adjust_progressBar.setValue(90) # update progressBar
+            streets.add_bool_column() # possible routes
+
+            self.dlg.adjust_progressBar.setValue(95) # update progressBar
+
+            if self.dlg.adjust_radioButton_new.isChecked():
+                buildings_path = self.dlg.adjust_lineEdit_buildings.text()
+                streets_path = self.dlg.adjust_lineEdit_streets.text()
+
+            # save shapes
+            buildings.gdf.to_file(buildings_path)
+            streets.gdf.to_file(streets_path)
+
+            if self.dlg.adjust_radioButton_new.isChecked():
+                # load layers to project
+                self.add_shapefile_to_project(streets_path)
+                self.add_shapefile_to_project(buildings_path)
+            else:
+                QgsProject.instance().removeMapLayer(buildings_layer_obj)
+                QgsProject.instance().removeMapLayer(streets_layer_obj)
+                self.add_shapefile_to_project(streets_path)
+                self.add_shapefile_to_project(buildings_path)
+            
+            self.dlg.adjust_progressBar.setValue(100) # update progressBar
+
+            self.dlg.adjust_label_feedback.setStyleSheet("color: green")
+            self.dlg.adjust_label_feedback.setText('Completed!')
+            self.dlg.adjust_label_feedback.repaint()
+
+    def status_analysis(self):
+        # update progressBar
+        self.dlg.status_progressBar.setValue(0)
+
+        # layer from combo box
+        streets_path, streets_layer_name, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.status_comboBox_streets)
+        parcels_path, parcels_layer_name, parcels_layer_obj = self.get_layer_path_from_combobox(self.dlg.status_comboBox_parcels)
+        buildings_path, buildings_layer_name, buildings_layer_obj = self.get_layer_path_from_combobox(self.dlg.status_comboBox_buildings)
+        
+        # attributes from layer
+        heat_attribute = self.dlg.status_comboBox_heat.currentText()
+        power_attribute = self.dlg.status_comboBox_power.currentText()
+
+        # path from lineEdit
+        polygon_path = self.dlg.status_lineEdit_polygons.text()
+
+        self.dlg.status_progressBar.setValue(2) # update progressBar
+
+        # shapes to gdf
+        streets = gpd.read_file(streets_path)
+        parcels = gpd.read_file(parcels_path)
+        buildings = gpd.read_file(buildings_path)
+
+        # HLD/WLD
+        wld = WLD(buildings,streets)
+        self.dlg.status_progressBar.setValue(5) # update progressBar
+        wld.get_centroid()
+        self.dlg.status_progressBar.setValue(20) # update progressBar
+        wld.closest_street_buildings()
+        self.dlg.status_progressBar.setValue(30) # update progressBar
+        wld.add_lenght()
+        self.dlg.status_progressBar.setValue(40) # update progressBar
+        wld.add_heat_att(heat_att=heat_attribute)
+        self.dlg.status_progressBar.setValue(50) # update progressBar
+        wld.add_WLD(heat_att=heat_attribute)
+        self.dlg.status_progressBar.setValue(60) # update progressBar
+        wld.streets.to_file(streets_path, crs=self.epsg_code)
+        self.add_shapefile_to_project(streets_path, att='hld' )
+        
+
+        # polygons
+        polygons = Polygons(parcels, wld.streets, buildings)
+        polygons.select_parcels_by_building_connection(0.1)
+        self.dlg.status_progressBar.setValue(70) # update progressBar
+        polygons.buffer_dissolve_and_explode(0.5)
+        self.dlg.status_progressBar.setValue(80) # update progressBar
+        polygons.add_attributes(heat_attribute, power_attribute)
+        self.dlg.status_progressBar.setValue(90) # update progressBar
+        polygons.polygons.to_file(polygon_path, crs=self.epsg_code)
+        self.add_shapefile_to_project(polygon_path)
+        self.dlg.status_progressBar.setValue(100) # update progressBar
+
     def network_analysis(self):
 
         # update progressBar
@@ -470,10 +647,10 @@ class HeatNetTool:
         t_return = self.dlg.net_doubleSpinBox_return.value()
 
         # Layer paths
-        source_path, source_layer = self.get_layer_path_from_combobox(self.dlg.net_comboBox_source)
-        streets_path, streets_layer = self.get_layer_path_from_combobox(self.dlg.net_comboBox_streets)
-        buildings_path, buildings_layer = self.get_layer_path_from_combobox(self.dlg.net_comboBox_buildings)
-        polygon_path, polygon_layer  = self.get_layer_path_from_combobox(self.dlg.net_comboBox_polygon)
+        source_path, source_layer, source_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_source)
+        streets_path, streets_layer, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_streets)
+        buildings_path, buildings_layer, buildings_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_buildings)
+        polygon_path, polygon_layer, polygon_layer_obj  = self.get_layer_path_from_combobox(self.dlg.net_comboBox_polygon)
         
         heat_attribute = self.dlg.net_comboBox_heat.currentText()
         power_attribute = self.dlg.net_comboBox_power.currentText()
@@ -577,10 +754,18 @@ class HeatNetTool:
             package_list = ['openpyxl','networkx','geopandas','fiona']
             self.dlg.intro_pushButton_load_packages.clicked.connect(lambda: self.install_package(package_list))
             
+            # Project path
+            project_file_path = QgsProject.instance().fileName()
+            self.project_dir = os.path.dirname(project_file_path)
+
+            # Project CRS
+            project_crs = QgsProject.instance().crs()
+            self.epsg_code = project_crs.authid()
+
             ### Load ###
             # download options
             self.dlg.load_pushButton_options.clicked.connect(self.load_download_options)
-
+            
             # shape paths
             self.dlg.load_pushButton_buildings.clicked.connect(
                 lambda: self.select_output_file(self.project_dir, self.dlg.load_lineEdit_buildings,'*.gpkg;;*.shp'))
@@ -589,24 +774,48 @@ class HeatNetTool:
             self.dlg.load_pushButton_streets.clicked.connect(
                 lambda: self.select_output_file(self.project_dir, self.dlg.load_lineEdit_streets,'*.gpkg;;*.shp'))
             
+            # Start Download Files 
+            self.dlg.load_pushButton_start.clicked.connect(self.download_files)
+
+            ### Adjust ###
+
+            # shape paths
+            self.dlg.adjust_pushButton_buildings.clicked.connect(
+                lambda: self.select_output_file(self.project_dir, self.dlg.adjust_lineEdit_buildings,'*.gpkg;;*.shp'))
+            self.dlg.adjust_pushButton_streets.clicked.connect(
+                lambda: self.select_output_file(self.project_dir, self.dlg.adjust_lineEdit_streets,'*.gpkg;;*.shp'))
+            
+            # Start Adjust Files 
+            self.dlg.adjust_pushButton_start.clicked.connect(self.adjust_files)
+
+            ### status ###
+
+            # shape paths
+            self.dlg.status_pushButton_polygons.clicked.connect(
+                lambda: self.select_output_file(self.project_dir, self.dlg.status_lineEdit_polygons,'*.gpkg;;*.shp'))
+            
+            # start status analysis
+            self.dlg.status_pushButton_start.clicked.connect(self.status_analysis)
+
             ### Net ###
+
             # select output file
             self.dlg.net_pushButton_net_output.clicked.connect(
                 lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_net,'*.gpkg;;*.shp'))
             self.dlg.net_pushButton_result.clicked.connect(
                 lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_result,'*.xlsx;;*.csv'))
 
-        ### Download Files ###
+            # start network analysis
+            self.dlg.net_pushButton_start.clicked.connect(self.network_analysis)
 
-        self.dlg.load_pushButton_start.clicked.connect(self.download_files)
+        # updates when tab is changed
+        self.dlg.tabWidget.currentChanged.connect(self.tab_change)
 
-        ### Network Analysis ###   
-        
-        # Load layers into all the comboBoxes
-        self.load_layers_to_combobox(self.dlg.net_comboBox_buildings)
-        self.load_layers_to_combobox(self.dlg.net_comboBox_streets)
-        self.load_layers_to_combobox(self.dlg.net_comboBox_source)
-        self.load_layers_to_combobox(self.dlg.net_comboBox_polygon)
+        # Connect signal for status_comboBox_buildings to load attributes on change
+        self.dlg.status_comboBox_buildings.currentIndexChanged.connect(
+            lambda: self.load_attributes('status_comboBox_buildings', 'status_comboBox_heat'))
+        self.dlg.status_comboBox_buildings.currentIndexChanged.connect(
+            lambda: self.load_attributes('status_comboBox_buildings', 'status_comboBox_power'))
         
         # Connect signal for net_comboBox_buildings to load attributes on change
         self.dlg.net_comboBox_buildings.currentIndexChanged.connect(
@@ -614,7 +823,6 @@ class HeatNetTool:
         self.dlg.net_comboBox_buildings.currentIndexChanged.connect(
             lambda: self.load_attributes('net_comboBox_buildings', 'net_comboBox_power'))
 
-        self.dlg.net_pushButton_start.clicked.connect(self.network_analysis)
-
+        
         # show the dialog
         self.dlg.show()
