@@ -41,33 +41,29 @@ def read_file_from_zip(url,zipfile,file_pattern,encoding='utf-8'):
             zipfile: name of the zipfile
             file_path: path and name of desired file in zip file
             '''
-            try:
-                with urllib.request.urlopen(url + zipfile) as response:
-                    with ZipFile(BytesIO(response.read())) as my_zip_file:
-                        # Create a temporary directory
-                        temp_dir = '/tmp/extracted_zip'
-                        os.makedirs(temp_dir, exist_ok=True)
+            with urllib.request.urlopen(url + zipfile) as response:
+                with ZipFile(BytesIO(response.read())) as my_zip_file:
+                    # Create a temporary directory
+                    temp_dir = '/tmp/extracted_zip'
+                    os.makedirs(temp_dir, exist_ok=True)
 
-                        # Extract the entire Zip archive to the temporary directory
-                        my_zip_file.extractall(temp_dir)
-                        
-                        # search matching file
-                        file_list = my_zip_file.namelist()
+                    # Extract the entire Zip archive to the temporary directory
+                    my_zip_file.extractall(temp_dir)
+                    
+                    # search matching file
+                    file_list = my_zip_file.namelist()
 
-                        matching_files = [file for file in file_list if 
-                                            file_pattern in file and file.endswith('.shp')]
+                    matching_files = [file for file in file_list if 
+                                        file_pattern in file and file.endswith('.shp')]
 
-                        file = matching_files[0]
+                    file = matching_files[0]
 
-                        # Read the shapefile directly from the extracted directory
-                        data = gpd.read_file(os.path.join(temp_dir, file), encoding=encoding)
+                    # Read the shapefile directly from the extracted directory
+                    data = gpd.read_file(os.path.join(temp_dir, file), encoding=encoding)
 
-                        # Clean up: Remove the temporary directory
-                        shutil.rmtree(temp_dir)
-                return data
-            except Exception as e:
-                print(f"Error reading shapefile from zip: {e}")
-                return None
+                    # Clean up: Remove the temporary directory
+                    shutil.rmtree(temp_dir)
+            return data
 
 def filter_df(name, dataframe, parameter):
     '''searches data frame for city name'''
