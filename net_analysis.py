@@ -8,6 +8,7 @@ from openpyxl import load_workbook
 from openpyxl.drawing.image import Image
 import subprocess
 import sys
+import os
 
 def get_closest_point(line, point):
     '''Ermittelt den nächstgelegenen Punkt auf der Linie zu einem Punkt'''
@@ -276,50 +277,54 @@ class Graph:
         nx.draw_networkx(self.graph, pos=pos, with_labels=False, font_size=6, node_size=3, node_color='blue', edge_color='gray')
         plt.show()
 
-    def test_connection(self, source):
-        def get_connected_points(G, input_point):
-            '''
-            Ermittelt die mit dem Eingabepunkt verbundenen Punkte im Graphen G.
-            G: Graph
-            input_point: Eingabepunkt
-            '''
-            # Überprüfung der Existenz des Eingabepunkts im Graphen
-            if input_point not in G.nodes:
-                print("Eingabepunkt nicht im Graphen enthalten.")
-                return []
-
-            # Ermitteln der verbundenen Punkte mithilfe von zusammenhängenden Komponenten
-            for component in nx.connected_components(G):
-                if input_point in component:
-                    return list(component - {input_point})  # Entfernen des input_point aus den verbundenen Punkten
-
+    
+    def get_connected_points(self, input_point):
+        '''
+        Ermittelt die mit dem Eingabepunkt verbundenen Punkte im Graphen G.
+        G: Graph
+        input_point: Eingabepunkt
+        '''
+        # Überprüfung der Existenz des Eingabepunkts im Graphen
+        if input_point not in self.graph.nodes:
+            print("Eingabepunkt nicht im Graphen enthalten.")
             return []
 
-        def plot_graph(G, input_point, connected_points):
-            '''
-            Plot des Graphen mit eingefärbten verbundenen Punkten.
-            G: Graph
-            input_point: Eingabepunkt
-            connected_points: Liste der verbundenen Punkte
-            '''
-            pos = {node: (node[0], node[1]) for node in G.nodes}
+        # Ermitteln der verbundenen Punkte mithilfe von zusammenhängenden Komponenten
+        for component in nx.connected_components(self.graph):
+            if input_point in component:
+                return list(component - {input_point})  # Entfernen des input_point aus den verbundenen Punkten
 
-            # Knoten einfärben
-            node_colors = ['blue' if node == input_point else 'red' for node in G.nodes]
+        return []
 
-            # Verbundene Punkte einfärben
-            for node in connected_points:
-                node_colors[list(G.nodes).index(node)] = 'green'
+    def plot_graph(self, input_point, connected_points):
+        '''
+        Plot des Graphen mit eingefärbten verbundenen Punkten.
+        G: Graph
+        input_point: Eingabepunkt
+        connected_points: Liste der verbundenen Punkte
+        '''
+        pos = {node: (node[0], node[1]) for node in self.graph.nodes}
 
-            # Graph plotten
-            plt.figure(figsize=(20, 20))
-            nx.draw(G, pos, node_color=node_colors, font_size=6, node_size=10, with_labels=False)
-            plt.show()
+        # Knoten einfärben
+        node_colors = ['blue' if node == input_point else 'red' for node in self.graph.nodes]
 
-        start_point = (source['geometry'][0].x, source['geometry'][0].y)
-        connected_points = get_connected_points(self.graph, start_point)
-        plot_graph(self.graph, start_point, connected_points)
+        # Verbundene Punkte einfärben
+        for node in connected_points:
+            node_colors[list(self.graph.nodes).index(node)] = '#00ff33'
 
+        # Graph plotten
+        plt.figure(figsize=(20, 20))
+        plt.title('Graph Network with connected and disconnected Points')
+
+        # Legend
+        legend_labels = {'Source': 'blue', 'Connected Points': '#00ff33', 'Disconnected Points': 'red'}
+        legend_handles = [plt.Line2D([0], [0], marker='o', color=color, label=label, linestyle='None') for label, color in legend_labels.items()]
+        plt.legend(handles=legend_handles, loc='upper right', fontsize=10)
+
+        nx.draw(self.graph, pos, node_color=node_colors, font_size=6, node_size=10, with_labels=False)
+        plt.show()
+
+        
     def graph_to_gdf(self): # Methode ist ebenfalls in Net. Klassen zusammenfügen? --> Wegen übersichtlichkeit erstmal nicht
         """Konvertiert einen networkx-Graphen in ein GeoDataFrame, wobei auch die Kantenattribute übernommen werden."""
         geometries = []
@@ -550,8 +555,8 @@ class Net:
 
 class Result:
     def __init__(self,path):
-        self.result_list = [] # Liste der Ergebnisse [Netz1, Netz2,..., Zusammenfassung, Vergleich]
-        self.sum_list = [] # Liste für Summenliste der Netze (benötigt für Vergleich)
+        #self.result_list = [] # Liste der Ergebnisse [Netz1, Netz2,..., Zusammenfassung, Vergleich]
+        #self.sum_list = [] # Liste für Summenliste der Netze (benötigt für Vergleich)
         self.path = path # Pfad zur Ergebnisdatei
 
     def create_data_dict(self, buildings, net, types, dn_list, heat_att, h_temp, l_temp):
@@ -580,7 +585,7 @@ class Result:
         
         # Kumulierte Gebäude. Wärmebedarf und Anzahl pro Lastprofil
         kum_b = buildings.groupby('Lastprofil').agg({heat_att: 'sum'}).reset_index()
-        kum_b['count'] = buildings.groupby('Lastprofil').count().reset_index()['count']
+        kum_b['count'] = buildings.groupby('Lastprofil').size().reset_index(name='count')['count']
 
         kum_b[heat_att]/=1000 #MW
         
@@ -643,34 +648,42 @@ class Result:
         # sum_row['Typ']=net_name
         # self.sum_list.append(sum_row)
     
-    # def safe_in_excel(self, col = 0, index_bool=False, sheet_option ='replace', sheet = 'Zusammenfassung'):
-    #     '''
-    #     Speichert das DataFrame df in einer Exceltabelle unter filename
-    #     df: DataFrame
-    #     col: Startspalte
-    #     index_bool: einstellen, ob das df mit oder ohne indices gespeichert werden soll
-    #     filename: Pfad der Exceldatei
-    #     sheet: Sheet der Exceldatei in dem gespeichert werden soll
-    #     '''
-    #     # Öffnet die existierende Excel-Datei und schreibt den letzten(neuesten) DataFrame der Liste in das angegebene Sheet
-    #     with pd.ExcelWriter(self.path, engine='openpyxl', mode='a', if_sheet_exists=sheet_option) as writer:
-    #         self.result_list[-1].to_excel(writer, sheet_name=sheet, index=index_bool, startcol=col)
+    def save_in_excel(self, col = 0, index_bool=False, sheet_option ='replace', sheet = 'Zusammenfassung'):
+        '''
+        Speichert das DataFrame df in einer Exceltabelle unter filename
+        df: DataFrame
+        col: Startspalte
+        index_bool: einstellen, ob das df mit oder ohne indices gespeichert werden soll
+        filename: Pfad der Exceldatei
+        sheet: Sheet der Exceldatei in dem gespeichert werden soll
+        '''
+        # Überprüfen, ob die Datei existiert
+        if os.path.exists(self.path):
+            mode = 'a'  # Anfügen-Modus
+            writer_args = {'if_sheet_exists': sheet_option}
+        else:
+            mode = 'w'  # Schreib-Modus, erstellt eine neue Datei
+            writer_args = {}
 
-    #     # Zellgrößen anpassen
-    #     wb = load_workbook(filename = self.path)        
-    #     ws = wb[sheet]
-    #     for col in ws.columns:
-    #         max_length = 0
-    #         column = col[0].column_letter # Get the column name
-    #         for cell in col:
-    #             try: # Necessary to avoid error on empty cells
-    #                 if len(str(cell.value)) > max_length:
-    #                     max_length = len(str(cell.value))
-    #             except:
-    #                 pass
-    #         adjusted_width = (max_length+1)
-    #         ws.column_dimensions[column].width = adjusted_width
-    #     wb.save(self.path)
+        # Öffnet die Excel-Datei im entsprechenden Modus und schreibt den DataFrame in das angegebene Sheet
+        with pd.ExcelWriter(self.path, engine='openpyxl', mode=mode, **writer_args) as writer:
+            self.gdf.to_excel(writer, sheet_name=sheet, index=index_bool, startcol=col)
+        
+        # Zellgrößen anpassen
+        wb = load_workbook(filename = self.path)        
+        ws = wb[sheet]
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter # Get the column name
+            for cell in col:
+                try: # Necessary to avoid error on empty cells
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = (max_length+1)
+            ws.column_dimensions[column].width = adjusted_width
+        wb.save(self.path)
     
     # def result(self):
     #     '''Fügt die einzelnen Ergebnisse der Netze zu einem Ergebnis-DataFrame zusammen'''
