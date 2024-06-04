@@ -24,7 +24,7 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QCompleter
-from qgis.core import QgsField, QgsProject, QgsMapLayer, QgsVectorLayer,QgsGraduatedSymbolRenderer, QgsSymbol, QgsLineSymbol, QgsSymbolLayer, QgsRendererCategory, QgsRendererRange, QgsClassificationRange
+from qgis.core import Qgis, QgsField, QgsProject, QgsMapLayer, QgsVectorLayer, QgsMessageLog
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -37,12 +37,14 @@ import pandas as pd
 import geopandas as gpd
 import os
 from pathlib import Path
+from shapely import Point
+from workalendar.europe import Germany
 
 from .download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs
 from .adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
 from .status_analysis import WLD, Polygons
-
 from .net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
+from .load_curve import Temperature, EnergyDemandProfile, LoadProfile
 
 class HeatNetTool:
     """QGIS Plugin Implementation."""
@@ -630,115 +632,244 @@ class HeatNetTool:
         self.dlg.status_progressBar.setValue(100) # update progressBar
 
     def network_analysis(self):
+        #try:
+            # update progressBar
+            self.dlg.net_progressBar.setValue(0)
 
-        # update progressBar
-        self.dlg.net_progressBar.setValue(0)
+            # feedback
+            self.dlg.net_label_response.setText('Calculating...')
+            self.dlg.net_label_response.setStyleSheet("color: orange")
+            self.dlg.net_label_response.repaint()
 
-        # pipe info
-        excel_file_path = Path(self.plugin_dir) / 'pipe_data.xlsx'
-        pipe_info = pd.read_excel(excel_file_path, sheet_name='pipe_data')
-        dn_list = pipe_info['DN'].to_list()
+            # pipe info
+            excel_file_path = Path(self.plugin_dir) / 'pipe_data.xlsx'
+            pipe_info = pd.read_excel(excel_file_path, sheet_name='pipe_data')
+            dn_list = pipe_info['DN'].to_list()
 
-        # Load Profiles
-        load_profiles = ['EFH', 'MFH', 'GHA', 'GMK', 'GKO']
+            # Load Profiles
+            load_profiles = ['EFH', 'MFH', 'GHA', 'GMK', 'GKO']
 
-        # Temperatures from SpinBox
-        t_supply = self.dlg.net_doubleSpinBox_supply.value()
-        t_return = self.dlg.net_doubleSpinBox_return.value()
+            # Temperatures from SpinBox
+            t_supply = self.dlg.net_doubleSpinBox_supply.value()
+            t_return = self.dlg.net_doubleSpinBox_return.value()
 
-        # Layer paths
-        source_path, source_layer, source_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_source)
-        streets_path, streets_layer, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_streets)
-        buildings_path, buildings_layer, buildings_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_buildings)
-        polygon_path, polygon_layer, polygon_layer_obj  = self.get_layer_path_from_combobox(self.dlg.net_comboBox_polygon)
+            # Layer paths
+            source_path, source_layer, source_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_source)
+            streets_path, streets_layer, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_streets)
+            buildings_path, buildings_layer, buildings_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_buildings)
+            
+            heat_attribute = self.dlg.net_comboBox_heat.currentText()
+            power_attribute = self.dlg.net_comboBox_power.currentText()
+
+            # path to save net shape file and results
+            shape_path = self.dlg.net_lineEdit_net.text()
+            result_path = self.dlg.net_lineEdit_result.text()
+
+            # update progressBar
+            self.dlg.net_progressBar.setValue(2)
+
+            # Instantiate classes
+            buildings = Buildings(buildings_path, heat_attribute, buildings_layer)
+            source = Source(source_path, source_layer)
+            streets = Streets(streets_path, streets_layer)
+            result = Result(result_path)
+            
+            # check if polygon checkbox is checked
+            if self.dlg.net_checkBox_polygon.isChecked():
+                polygon_path, polygon_layer, polygon_layer_obj  = self.get_layer_path_from_combobox(self.dlg.net_comboBox_polygon)
+                # load polygon as gdf
+                if polygon_layer == None:
+                    polygon = gpd.read_file(polygon_path)
+                else: 
+                    polygon = gpd.read_file(polygon_path, layer=polygon_layer)
+
+                # only buildings within polygon
+                buildings.gdf = gpd.sjoin(buildings.gdf, polygon, how="inner", predicate="within")
+
+            # Drop unwanted routes if existing
+            try:
+                streets.gdf = streets.gdf[streets.gdf['possible_route']==1]
+            except:
+                pass
+
+            # update progressBar
+            self.dlg.net_progressBar.setValue(5)
+
+            # create connection points
+            buildings.add_centroid()
+            buildings.closest_points_buildings(streets.gdf)
+            source.closest_points_sources(streets.gdf)
+            streets.add_connection_to_streets(buildings.gdf, source.gdf)
+
+            # update progressBar
+            self.dlg.net_progressBar.setValue(15)
+
+            # Graph erstellen
+            graph = Graph()
+            graph.create_street_network(streets.gdf)
+            graph.connect_centroids(buildings.gdf)
+            graph.connect_source(source.gdf)
+            graph.add_attribute_length()
+
+            # test connection
+            start_point = (source.gdf['geometry'][0].x, source.gdf['geometry'][0].y)
+            connected_points = graph.get_connected_points(start_point)
+            all_points = list(graph.graph.nodes)
+            if start_point not in connected_points:
+                connected_points.append(start_point)
+            if len(all_points) > len(connected_points):
+                print(len(all_points), len(connected_points))
+                # check if polygon is activated
+                if self.dlg.net_checkBox_polygon.isChecked():
+                    # check if disconnected points are inside the polygon
+                    disconnected_points = [point for point in all_points if point not in connected_points and point != start_point]
+                    print( f'disconnected nodes: {len(disconnected_points)}')
+                    print(disconnected_points)
+                    if any(polygon['geometry'][0].contains(Point(point)) for point in disconnected_points):
+                        # feedback
+                        self.dlg.net_label_response.setText('Some points of the street network in your area are not connected! Please set their "possible_route"-attribute to zero or connect them to the street network by using the snapping tool.')
+                        self.dlg.net_label_response.setStyleSheet("color: red")
+                        self.dlg.net_label_response.repaint()
+                        graph.plot_graph(start_point, connected_points)
+                        raise RuntimeError("Some points of the street network in your area are not connected!")
+                else:
+                    disconnected_points = [point for point in all_points if point not in connected_points and point != start_point]
+                    print( f'{len(disconnected_points)} disconnected nodes')
+                    print(disconnected_points)
+                    # feedback
+                    self.dlg.net_label_response.setText('Some points of the street network are not connected! Please set their "possible_route"-attribute to zero or connect them to the street network by using the snapping tool.')
+                    self.dlg.net_label_response.setStyleSheet("color: red")
+                    self.dlg.net_label_response.repaint()
+                    graph.plot_graph(start_point, connected_points)
+                    raise RuntimeError("Some points of the street network are not connected!")
+
+            # update progressBar
+            self.dlg.net_progressBar.setValue(30)
+
+
+            ### Net Analysis ###
+            net = Net(t_supply,t_return)
+            net.network_analysis(graph.graph, buildings.gdf, source.gdf, pipe_info, power_att=power_attribute, progressBar=self.dlg.net_progressBar)
+
+            # update progressBar
+            self.dlg.net_progressBar.setValue(45)
+
+            # GeoDataFrame from net
+            net.ensure_power_attribute()
+            net.graph_to_gdf(crs = self.epsg_code)
+            
+            # save net shape
+            net.gdf.to_file(shape_path)
+
+            # load net as layer
+            self.add_shapefile_to_project(shape_path)
+
+
+            ### result ###
+            result.create_data_dict(buildings.gdf, net.gdf, load_profiles, dn_list, heat_attribute, t_supply, t_return)
+            result.create_df_from_dataDict(net_name = os.path.splitext(os.path.basename(shape_path))[0])
+            
+            # save result
+            #result.gdf.to_excel(result_path, index=False, sheet_name='result')
+            result.save_in_excel()
         
-        heat_attribute = self.dlg.net_comboBox_heat.currentText()
-        power_attribute = self.dlg.net_comboBox_power.currentText()
+            # update progressBar
+            self.dlg.net_progressBar.setValue(50)
 
-        # path to save net shape file and results
-        shape_path = self.dlg.net_lineEdit_net.text()
-        result_path = self.dlg.net_lineEdit_result.text()
+            ### Load Curve ###
 
-        # update progressBar
-        self.dlg.net_progressBar.setValue(2)
+            ## temperature
+            if self.dlg.net_checkBox_temperature.isChecked():
+                temp_path = self.dlg.net_lineEdit_temperature.text()
+                averegae_temp_profile = pd.read_excel(temp_path)
+            else:
+                poi = (source.gdf['geometry'][0].x, source.gdf['geometry'][0].y) # Point of interest
+                year = 2022 # historical data goes up to 2022
+                n = 10  # number of years for mean value
+                url_temp = 'https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/hourly/air_temperature/historical/'
 
-        # Instantiate classes
-        buildings = Buildings(buildings_path, heat_attribute, buildings_layer)
-        source = Source(source_path, source_layer)
-        streets = Streets(streets_path, streets_layer)
-        result = Result(result_path)
-        
-        # check if polygon checkbox is checked
-        if self.dlg.net_checkBox_polygon.isChecked():
-            # load polygon as gdf
-            if polygon_layer == None:
-                polygon = gpd.read_file(polygon_path)
-            else: 
-                polygon = gpd.read_file(polygon_path, layer=polygon_layer)
+                temp = Temperature(url_temp)
+                stations = temp.stationsfromtxt()
+                station = temp.nearestStation(poi,stations,year,n)
+                station_id = station['Stations_id'][0]
+                start_date = station['von_datum'][0]
+                end_date = station['bis_datum'][0]
+                if end_date > 20221231: end_date = 20221231 # historische Daten gehen bis Ende 2022
+                averegae_temp_profile = temp.tempdata(temp.url, station_id, year, start_date, end_date, n)
 
-            # only buildings within polygon
-            buildings.gdf = gpd.sjoin(buildings.gdf, polygon, how="inner", predicate="within")
+            ## load curve
 
-        # Drop unwanted routes if existing
-        try:
-            streets.gdf = streets.gdf[streets.gdf['possible_route']==1]
-        except:
-            pass
+            # set up time data
+            year = 2022
+            resolution = 8760
+            freq = 'H'
 
-        # update progressBar
-        self.dlg.net_progressBar.setValue(5)
+            # Holidays
+            cal = Germany()
+            holidays = dict(cal.holidays(year))
 
-        # create connection points
-        buildings.add_centroid()
-        buildings.closest_points_buildings(streets.gdf)
-        source.closest_points_sources(streets.gdf)
-        streets.add_connection_to_streets(buildings.gdf, source.gdf)
+            # temperature
+            temperature_data = averegae_temp_profile['TT_TU']
 
-        # update progressBar
-        self.dlg.net_progressBar.setValue(15)
+            # create energy profile
+            energy_profile = EnergyDemandProfile(year, temperature_data, holidays)
 
-        # Graph erstellen
-        graph = Graph()
-        graph.create_street_network(streets.gdf)
-        graph.connect_centroids(buildings.gdf)
-        graph.connect_source(source.gdf)
-        graph.add_attribute_length()
-        #graph.test_connection(source.gdf)
+            # dataframe for collecting generated profiles
+            demand = energy_profile.set_up_df(year, resolution, freq)
 
-        # update progressBar
-        self.dlg.net_progressBar.setValue(25)
+            # excel class
+            load_profile = LoadProfile(result.gdf, result_path)
 
-        net = Net(t_supply,t_return)
-        net.network_analysis(graph.graph, buildings.gdf, source.gdf, pipe_info, power_att=power_attribute, progressBar=self.dlg.net_progressBar)
-        #net.plot_network(streets.gdf,buildings.gdf,source.gdf,filename='../Netz.png')
+            for row in load_profile.net_result.itertuples(index=False):
+                building_type = row.Lastprofil
+                building_class = 3 # Baualtersklasse NRW:3 Quelle:Praxisinformation P 2006 / 8 Gastransport / Betriebswirtschaft, BGW, 2006, Seite 43 Tabelle 2 und 3 -->"C:\Users\Lars_Goray\Desktop\Wärmenetzplanung\Literatur\WICHTIG_3.5_standardlastprofile_bgw_information_lastprofile.pdf"
+                if pd.isna(building_type):
+                    break
+                elif building_type.lower() not in ('efh', 'mfh'):
+                    building_class = 0
+                hd = row[2]
+                demand[building_type] = energy_profile.create_heat_demand_profile(building_type, building_class, 0, 1, hd)
 
-        # update progressBar
-        self.dlg.net_progressBar.setValue(90)
+            # add sum column for all buildings
+            demand_with_sum_buildings = load_profile.add_sum_buildings(demand)
 
-        # GeoDataFrame aus Netz erstellen
-        net.ensure_power_attribute()
-        net.graph_to_gdf(crs = self.epsg_code)
+            # add loss
+            demand_with_loss = load_profile.add_loss(demand_with_sum_buildings, load_profile.net_result, resolution)
+            
+            # add sum buildings+loss
+            demand_with_sum = load_profile.add_sum(demand_with_loss)
 
-        # result
-        result.create_data_dict(buildings.gdf, net.gdf, load_profiles, dn_list, heat_attribute, t_supply, t_return)
-        result.create_df_from_dataDict(net_name = os.path.splitext(os.path.basename(shape_path))[0])
-        
-        # save result
-        filename, file_extension = os.path.splitext(result_path)
-        if file_extension == '.xlsx':
-            result.gdf.to_excel(result_path, index=False)
-        else: 
-            result.gdf.to_csv(result_path, sep=';', index=False)
+            # plot and save fig
+            energy_profile.plot_bar_chart(demand_with_sum, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil.png')
 
-        # save net shape
-        net.gdf.to_file(shape_path)
+            # order
+            sorted_demand = demand_with_sum.sort_values(by='Gesamtsumme', ascending=False)
 
-        # load net as layer
-        self.add_shapefile_to_project(shape_path)
-        
-        # update progressBar
-        self.dlg.net_progressBar.setValue(100)
+            # plot and save fig
+            energy_profile.plot_bar_chart(sorted_demand, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil_geordnet.png')
+    
+            # save demand profile in excel
+            load_profile.safe_in_excel(demand_with_sum, index_bool=True)
 
+            # save load curve plot in excel
+            load_profile.embed_image_in_excel(0,demand_with_sum.shape[1]+1, image_filename = self.project_dir+'/Lastprofil.png')
+
+            # save sorted load curve plot in excel
+            load_profile.embed_image_in_excel(20,demand_with_sum.shape[1]+1, image_filename = self.project_dir+'/Lastprofil_geordnet.png')
+
+            # open result
+            load_profile.open_excel_file()
+
+            # update progressBar
+            self.dlg.net_progressBar.setValue(100)
+            # feedback
+            self.dlg.net_label_response.setText('Completed')
+            self.dlg.net_label_response.setStyleSheet("color: green")
+            self.dlg.net_label_response.repaint()
+
+        # except Exception as e:
+        #     QgsMessageLog.logMessage(str(e), 'Network Analysis', Qgis.Critical)
+        #     return
 
     def run(self):
         """Run method that performs all the real work"""
@@ -751,7 +882,7 @@ class HeatNetTool:
 
             # install python packages
 
-            package_list = ['openpyxl','networkx','geopandas','fiona']
+            package_list = ['openpyxl','networkx','geopandas','fiona', 'workalendar', 'demandlib']
             self.dlg.intro_pushButton_load_packages.clicked.connect(lambda: self.install_package(package_list))
             
             # Project path
@@ -803,7 +934,9 @@ class HeatNetTool:
             self.dlg.net_pushButton_net_output.clicked.connect(
                 lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_net,'*.gpkg;;*.shp'))
             self.dlg.net_pushButton_result.clicked.connect(
-                lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_result,'*.xlsx;;*.csv'))
+                lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_result,'*.xlsx'))
+            self.dlg.net_pushButton_temperature.clicked.connect(
+                lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_temperature,'*.xlsx'))
 
             # start network analysis
             self.dlg.net_pushButton_start.clicked.connect(self.network_analysis)
