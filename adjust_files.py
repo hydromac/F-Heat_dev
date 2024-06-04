@@ -3,6 +3,7 @@ import pandas as pd
 from shapely.geometry import LineString,MultiLineString
 import re
 from collections import Counter
+import numpy as np
 
 class Streets_adj():
     def __init__(self, path, projected_crs):
@@ -41,7 +42,7 @@ class Streets_adj():
         self.gdf = streets 
     
     def add_bool_column(self):
-        self.gdf['possible routes'] = 1
+        self.gdf['possible_route'] = 1
 
 class Buildings_adj():
     def __init__(self, path, heat_att, projected_crs):
@@ -76,9 +77,19 @@ class Buildings_adj():
         '''Leistung hinzufügen'''
         buildings['power'] = buildings[self.heat_att] / buildings['Vlh'].where(buildings['Vlh'] != 0, 1600) # Falls 0 VLH eingetragen sind wird mit 1600 gerechnet
         self.gdf = buildings
+    
+    @staticmethod
+    def extract_year(date_str):
+        if pd.notna(date_str):
+            return int(date_str[:4])
+        return np.nan
 
     def add_BAK(self,bins,labels):
-        self.gdf['jahr'] = self.gdf['validFrom'].str[:4].astype(int)
+        #self.gdf['jahr'] = self.gdf['validFrom'].str[:4].astype(int)
+        
+        # Nur die Zeilen auswählen, in denen validFrom nicht NaN ist, und die Umwandlung durchführen
+        self.gdf['jahr'] = self.gdf['validFrom'].apply(self.extract_year)
+
         self.gdf['BAK'] = pd.cut(self.gdf['jahr'], bins=bins, labels=labels, right=True)
         self.gdf['BAK'] = self.gdf['BAK'].astype(str)
         self.gdf.drop(columns=['jahr'], inplace = True)
