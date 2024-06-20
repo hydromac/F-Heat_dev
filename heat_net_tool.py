@@ -246,7 +246,7 @@ class HeatNetTool:
         else:
             return None, None, None
 
-    def add_shapefile_to_project(self, shapefile_path, att=None):
+    def add_shapefile_to_project(self, shapefile_path, style=None):
         """Add a shapefile to the QGIS project."""
         layer_name = os.path.splitext(os.path.basename(shapefile_path))[0]
         layer = QgsVectorLayer(path=shapefile_path, baseName=layer_name, providerLib='ogr')
@@ -254,51 +254,26 @@ class HeatNetTool:
             print("Layer failed to load!")
             return
 
-        # if att == 'hld':
-        #     # Define renderer
-        #     renderer = QgsGraduatedSymbolRenderer('HLD')
-
-        #     # Define categories
-        #     categories = []
-
-        #     # Define symbols for each category
-        #     symbol_0 = QgsLineSymbol()
-        #     symbol_0.setWidth(0.3)  # Adjust line width for category 0
-        #     categories.append(QgsRendererCategory(0.0, symbol_0, '0'))
-
-        #     symbol_1 = QgsLineSymbol()
-        #     symbol_1.setWidth(0.6)  # Adjust line width for category 1
-        #     categories.append(QgsRendererCategory(500.0, symbol_1, '0-500'))
-
-        #     symbol_2 = QgsLineSymbol()
-        #     symbol_2.setWidth(1)  # Adjust line width for category 2
-        #     categories.append(QgsRendererCategory(1200.0, symbol_2, '500-1200'))
-
-        #     symbol_3 = QgsLineSymbol()
-        #     symbol_3.setWidth(1.3)  # Adjust line width for category 3
-        #     categories.append(QgsRendererCategory(float('inf'), symbol_3, '>1200'))
-
-        #     # Apply categories to renderer
-        #     renderer.categories = categories
-        #     layer.setRenderer(renderer)
-        #     #layer.triggerRepaint()
-
         QgsProject.instance().addMapLayer(layer)
 
+        # Apply style
+        if style == 'hld':
+            style_path = self.plugin_dir + '/layerstyles/hld.qml'
+            layer.loadNamedStyle(style_path)
+
+        if style == 'polygons':
+            style_path = self.plugin_dir + '/layerstyles/polygons.qml'
+            layer.loadNamedStyle(style_path)
 
     def load_download_options(self):
         '''download municipality and city names of NRW to comboBoxes'''
 
-        # feedback
-        self.dlg.load_label_feedback1.setText('Loading Options...')
-        self.dlg.load_label_feedback1.setStyleSheet("color: orange")
-        self.dlg.load_label_feedback1.repaint()
+        path = Path(self.plugin_dir) / 'cities.xlsx'
+        df = pd.read_excel(path, dtype={'schluessel': str, 'gmdschl': str})
 
-        url = 'https://www.opengeodata.nrw.de/produkte/geobasis/lk/akt/gmk_flur_shp/'
-        zipfile = 'gmk_flur_EPSG25832_Shape.zip'
-        file_pattern = 'vg_gemarkung'
+        # convert string to list with floats
+        df['bbox'] = df['bbox'].apply(lambda x: [float(coord) for coord in x.replace('(', '').replace(')', '').split(',')])
 
-        df = read_file_from_zip(url, zipfile, file_pattern, encoding = 'utf-8')
         municipalities = sorted(df['gemeinde'].unique().tolist())
         cities = sorted(df['name'].tolist())
 
@@ -309,9 +284,6 @@ class HeatNetTool:
         # save df for later operations
         self.gemarkungen_df = df
 
-        # feedback
-        self.dlg.load_label_feedback1.setStyleSheet("color: green")
-        self.dlg.load_label_feedback1.setText('Loading complete!')
 
     # Methods for loading layers and attributes to comboboxes
 
@@ -412,9 +384,7 @@ class HeatNetTool:
         
         # filter df for city/municipality name
         filtered_df = filter_df(name, self.gemarkungen_df, parameter)
-        # add bounding box (important for downloading parcels)
-        filtered_df['bbox'] = filtered_df['geometry'].bounds.apply(
-            lambda row: (row['minx'], row['miny'], row['maxx'], row['maxy']), axis=1)
+        
         # city/municipality keys
         municipality_key = filtered_df['gmdschl'][0]
 
@@ -616,7 +586,7 @@ class HeatNetTool:
         wld.add_WLD(heat_att=heat_attribute)
         self.dlg.status_progressBar.setValue(60) # update progressBar
         wld.streets.to_file(streets_path, crs=self.epsg_code)
-        self.add_shapefile_to_project(streets_path, att='hld' )
+        self.add_shapefile_to_project(streets_path, style = 'hld' )
         
 
         # polygons
@@ -628,7 +598,7 @@ class HeatNetTool:
         polygons.add_attributes(heat_attribute, power_attribute)
         self.dlg.status_progressBar.setValue(90) # update progressBar
         polygons.polygons.to_file(polygon_path, crs=self.epsg_code)
-        self.add_shapefile_to_project(polygon_path)
+        self.add_shapefile_to_project(polygon_path, style = 'polygons')
         self.dlg.status_progressBar.setValue(100) # update progressBar
 
     def network_analysis(self):
@@ -895,7 +865,7 @@ class HeatNetTool:
 
             ### Load ###
             # download options
-            self.dlg.load_pushButton_options.clicked.connect(self.load_download_options)
+            self.load_download_options()
             
             # shape paths
             self.dlg.load_pushButton_buildings.clicked.connect(
