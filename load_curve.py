@@ -103,7 +103,12 @@ class Temperature:
     
 class EnergyDemandProfile:
     """
-    Description: #TODO: Describing class, methods and params
+    Class for simulating standard load profiles for heta and electricity based on BDEW.
+
+    Parameters
+    ----------
+    year : int
+        ...
     """
     def __init__(self, year, temperature_data, holidays):
         self.year = year
