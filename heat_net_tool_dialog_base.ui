@@ -837,7 +837,7 @@ p, li { white-space: pre-wrap; }
           <item row="4" column="0" colspan="2">
            <widget class="QLabel" name="label_27">
             <property name="text">
-             <string>Power</string>
+             <string>Power_th</string>
             </property>
             <property name="alignment">
              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -1134,7 +1134,7 @@ p, li { white-space: pre-wrap; }
              </size>
             </property>
             <property name="text">
-             <string>    Power</string>
+             <string>    Power_th</string>
             </property>
             <property name="alignment">
              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
