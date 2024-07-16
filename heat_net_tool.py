@@ -265,6 +265,18 @@ class HeatNetTool:
             style_path = self.plugin_dir + '/layerstyles/polygons.qml'
             layer.loadNamedStyle(style_path)
 
+        if style == 'streets':
+            style_path = self.plugin_dir + '/layerstyles/streets.qml'
+            layer.loadNamedStyle(style_path)
+
+        if style == 'buildings':
+            style_path = self.plugin_dir + '/layerstyles/buildings.qml'
+            layer.loadNamedStyle(style_path)
+        
+        if style == 'parcels':
+            style_path = self.plugin_dir + '/layerstyles/parcels.qml'
+            layer.loadNamedStyle(style_path)
+
     def load_download_options(self):
         '''download municipality and city names of NRW to comboBoxes'''
 
@@ -452,9 +464,9 @@ class HeatNetTool:
         parcels_gdf.to_file(parcels_path)
 
         # load layers to project
-        self.add_shapefile_to_project(parcels_path)
-        self.add_shapefile_to_project(buildings_path)
-        self.add_shapefile_to_project(streets_path)
+        self.add_shapefile_to_project(parcels_path, style = 'parcels')
+        self.add_shapefile_to_project(buildings_path, style = 'buildings')
+        self.add_shapefile_to_project(streets_path, style = 'streets')
         
         # update progressBar
         self.dlg.load_progressBar.setValue(100)
@@ -533,15 +545,15 @@ class HeatNetTool:
             buildings.gdf.to_file(buildings_path)
             streets.gdf.to_file(streets_path)
 
+            # check if files are overwritten or newly created
             if self.dlg.adjust_radioButton_new.isChecked():
-                # load layers to project
                 self.add_shapefile_to_project(streets_path)
                 self.add_shapefile_to_project(buildings_path)
             else:
                 QgsProject.instance().removeMapLayer(buildings_layer_obj)
                 QgsProject.instance().removeMapLayer(streets_layer_obj)
-                self.add_shapefile_to_project(streets_path)
-                self.add_shapefile_to_project(buildings_path)
+                self.add_shapefile_to_project(streets_path, style = 'streets')
+                self.add_shapefile_to_project(buildings_path, style = 'buildings')
             
             self.dlg.adjust_progressBar.setValue(100) # update progressBar
 
@@ -740,7 +752,6 @@ class HeatNetTool:
             result.create_df_from_dataDict(net_name = os.path.splitext(os.path.basename(shape_path))[0])
             
             # save result
-            #result.gdf.to_excel(result_path, index=False, sheet_name='result')
             result.save_in_excel()
         
             # update progressBar
