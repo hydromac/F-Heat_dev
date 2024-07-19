@@ -367,6 +367,29 @@ class HeatNetTool:
     # Main Methods
 
     def download_files(self):
+        '''
+        Downloads and processes shapefiles for buildings, streets, and parcels for a selected city or municipality.
+
+        This function performs the following steps:
+        1. Updates a progress bar.
+        2. Determines the selected city or municipality from a GUI.
+        3. Filters a DataFrame for the selected city or municipality.
+        4. Downloads and processes shapefiles for buildings and streets from a given URL.
+        5. Downloads and processes parcel data from a WFS service.
+        6. Filters building and street data to include only shapes within the parcels if a city is selected.
+        7. Saves the processed shapefiles to specified paths.
+        8. Loads the shapefiles into a GIS project.
+        9. Updates the progress bar and provides feedback in the GUI.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        '''
+        # Note: In GUI city = district, municipality = city
 
         # update progressBar
         self.dlg.load_progressBar.setValue(0)
@@ -626,10 +649,6 @@ class HeatNetTool:
             # pipe info
             excel_file_path = Path(self.plugin_dir) / 'pipe_data.xlsx'
             pipe_info = pd.read_excel(excel_file_path, sheet_name='pipe_data')
-            dn_list = pipe_info['DN'].to_list()
-
-            # Load Profiles
-            load_profiles = ['EFH', 'MFH', 'GHA', 'GMK', 'GKO']
 
             # Temperatures from SpinBox
             t_supply = self.dlg.net_doubleSpinBox_supply.value()
@@ -643,9 +662,8 @@ class HeatNetTool:
             heat_attribute = self.dlg.net_comboBox_heat.currentText()
             power_attribute = self.dlg.net_comboBox_power.currentText()
 
-            # path to save net shape file and results
+            # path to save net shape file
             shape_path = self.dlg.net_lineEdit_net.text()
-            result_path = self.dlg.net_lineEdit_result.text()
 
             # update progressBar
             self.dlg.net_progressBar.setValue(2)
@@ -654,7 +672,6 @@ class HeatNetTool:
             buildings = Buildings(buildings_path, heat_attribute, buildings_layer)
             source = Source(source_path, source_layer)
             streets = Streets(streets_path, streets_layer)
-            result = Result(result_path)
             
             # check if polygon checkbox is checked
             if self.dlg.net_checkBox_polygon.isChecked():
@@ -746,101 +763,6 @@ class HeatNetTool:
             # load net as layer
             self.add_shapefile_to_project(shape_path)
 
-
-            ### result ###
-            result.create_data_dict(buildings.gdf, net.gdf, load_profiles, dn_list, heat_attribute, t_supply, t_return)
-            result.create_df_from_dataDict(net_name = os.path.splitext(os.path.basename(shape_path))[0])
-            
-            # save result
-            result.save_in_excel()
-        
-            # update progressBar
-            self.dlg.net_progressBar.setValue(50)
-
-            ### Load Curve ###
-
-            ## temperature
-            if self.dlg.net_checkBox_temperature.isChecked():
-                temp_path = self.dlg.net_lineEdit_temperature.text()
-                averegae_temp_profile = pd.read_excel(temp_path)
-            else:
-                poi = (source.gdf['geometry'][0].x, source.gdf['geometry'][0].y) # Point of interest
-                year = 2022 # historical data goes up to 2022
-                n = 10  # number of years for mean value
-                url_temp = 'https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/hourly/air_temperature/historical/'
-
-                temp = Temperature(url_temp)
-                stations = temp.stationsfromtxt()
-                station = temp.nearestStation(poi,stations,year,n)
-                station_id = station['Stations_id'][0]
-                start_date = station['von_datum'][0]
-                end_date = station['bis_datum'][0]
-                if end_date > 20221231: end_date = 20221231 # historische Daten gehen bis Ende 2022
-                averegae_temp_profile = temp.tempdata(temp.url, station_id, year, start_date, end_date, n)
-
-            ## load curve
-
-            # set up time data
-            year = 2022
-            resolution = 8760
-            freq = 'H'
-
-            # Holidays
-            cal = Germany()
-            holidays = dict(cal.holidays(year))
-
-            # temperature
-            temperature_data = averegae_temp_profile['TT_TU']
-
-            # create energy profile
-            energy_profile = EnergyDemandProfile(year, temperature_data, holidays)
-
-            # dataframe for collecting generated profiles
-            demand = energy_profile.set_up_df(year, resolution, freq)
-
-            # excel class
-            load_profile = LoadProfile(result.gdf, result_path)
-
-            for row in load_profile.net_result.itertuples(index=False):
-                building_type = row.Lastprofil
-                building_class = 3 # Baualtersklasse NRW:3 Quelle:Praxisinformation P 2006 / 8 Gastransport / Betriebswirtschaft, BGW, 2006, Seite 43 Tabelle 2 und 3 -->"C:\Users\Lars_Goray\Desktop\Wärmenetzplanung\Literatur\WICHTIG_3.5_standardlastprofile_bgw_information_lastprofile.pdf"
-                if pd.isna(building_type):
-                    break
-                elif building_type.lower() not in ('efh', 'mfh'):
-                    building_class = 0
-                hd = row[2]
-                demand[building_type] = energy_profile.create_heat_demand_profile(building_type, building_class, 0, 1, hd)
-
-            # add sum column for all buildings
-            demand_with_sum_buildings = load_profile.add_sum_buildings(demand)
-
-            # add loss
-            demand_with_loss = load_profile.add_loss(demand_with_sum_buildings, load_profile.net_result, resolution)
-            
-            # add sum buildings+loss
-            demand_with_sum = load_profile.add_sum(demand_with_loss)
-
-            # plot and save fig
-            energy_profile.plot_bar_chart(demand_with_sum, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil.png')
-
-            # order
-            sorted_demand = demand_with_sum.sort_values(by='Gesamtsumme', ascending=False)
-
-            # plot and save fig
-            energy_profile.plot_bar_chart(sorted_demand, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil_geordnet.png')
-    
-            # save demand profile in excel
-            load_profile.safe_in_excel(demand_with_sum, index_bool=True)
-
-            # save load curve plot in excel
-            load_profile.embed_image_in_excel(0,demand_with_sum.shape[1]+1, image_filename = self.project_dir+'/Lastprofil.png')
-
-            # save sorted load curve plot in excel
-            load_profile.embed_image_in_excel(20,demand_with_sum.shape[1]+1, image_filename = self.project_dir+'/Lastprofil_geordnet.png')
-
-            # open result
-            load_profile.open_excel_file()
-
             # update progressBar
             self.dlg.net_progressBar.setValue(100)
             # feedback
@@ -851,6 +773,166 @@ class HeatNetTool:
         # except Exception as e:
         #     QgsMessageLog.logMessage(str(e), 'Network Analysis', Qgis.Critical)
         #     return
+
+    def create_result(self):
+        # update progressBar
+        self.dlg.net_progressBar.setValue(0)
+
+        # feedback
+        self.dlg.net_label_response.setText('Calculating...')
+        self.dlg.net_label_response.setStyleSheet("color: orange")
+        self.dlg.net_label_response.repaint()
+
+        # pipe info
+        excel_file_path = Path(self.plugin_dir) / 'pipe_data.xlsx'
+        pipe_info = pd.read_excel(excel_file_path, sheet_name='pipe_data')
+        dn_list = pipe_info['DN'].to_list()
+
+        # Load Profiles
+        load_profiles = ['EFH', 'MFH', 'GHA', 'GMK', 'GKO']
+
+        # Temperatures from SpinBox
+        t_supply = self.dlg.net_doubleSpinBox_supply.value()
+        t_return = self.dlg.net_doubleSpinBox_return.value()
+
+        # Layer paths
+        source_path, source_layer, source_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_source)
+        streets_path, streets_layer, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_streets)
+        buildings_path, buildings_layer, buildings_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_buildings)
+        
+        heat_attribute = self.dlg.net_comboBox_heat.currentText()
+        power_attribute = self.dlg.net_comboBox_power.currentText()
+
+        # net path
+        net_path = self.dlg.net_lineEdit_net.text()
+        net_gdf = gpd.read_file(net_path)
+
+        # Instantiate classes
+        buildings = Buildings(buildings_path, heat_attribute, buildings_layer)
+        source = Source(source_path, source_layer)
+        streets = Streets(streets_path, streets_layer)
+        
+        # check if polygon checkbox is checked
+        if self.dlg.net_checkBox_polygon.isChecked():
+            polygon_path, polygon_layer, polygon_layer_obj  = self.get_layer_path_from_combobox(self.dlg.net_comboBox_polygon)
+            # load polygon as gdf
+            if polygon_layer == None:
+                polygon = gpd.read_file(polygon_path)
+            else: 
+                polygon = gpd.read_file(polygon_path, layer=polygon_layer)
+
+            # only buildings within polygon
+            buildings.gdf = gpd.sjoin(buildings.gdf, polygon, how="inner", predicate="within")
+
+        # update progressBar
+        self.dlg.net_progressBar.setValue(10)
+
+        ### result ###
+        result_path = self.dlg.net_lineEdit_result.text()
+        result = Result(result_path)
+
+        result.create_data_dict(buildings.gdf, net_gdf, load_profiles, dn_list, heat_attribute, t_supply, t_return)
+        result.create_df_from_dataDict(net_name = os.path.splitext(os.path.basename(net_path))[0])
+        
+        # save result
+        result.save_in_excel()
+    
+        # update progressBar
+        self.dlg.net_progressBar.setValue(20)
+
+        ### Load Curve ###
+
+        ## temperature
+        if self.dlg.net_checkBox_temperature.isChecked():
+            temp_path = self.dlg.net_lineEdit_temperature.text()
+            averegae_temp_profile = pd.read_excel(temp_path)
+        else:
+            poi = (source.gdf['geometry'][0].x, source.gdf['geometry'][0].y) # Point of interest
+            year = 2022 # historical data goes up to 2022
+            n = 10  # number of years for mean value
+            url_temp = 'https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/hourly/air_temperature/historical/'
+
+            temp = Temperature(url_temp)
+            stations = temp.stationsfromtxt()
+            station = temp.nearestStation(poi,stations,year,n)
+            station_id = station['Stations_id'][0]
+            start_date = station['von_datum'][0]
+            end_date = station['bis_datum'][0]
+            if end_date > 20221231: end_date = 20221231 # historische Daten gehen bis Ende 2022
+            averegae_temp_profile = temp.tempdata(temp.url, station_id, year, start_date, end_date, n)
+
+        # update progressBar
+        self.dlg.net_progressBar.setValue(30)
+
+        ## load curve
+
+        # set up time data
+        year = 2022
+        resolution = 8760
+        freq = 'H'
+
+        # Holidays
+        cal = Germany()
+        holidays = dict(cal.holidays(year))
+
+        # temperature
+        temperature_data = averegae_temp_profile['TT_TU']
+
+        # create energy profile
+        energy_profile = EnergyDemandProfile(year, temperature_data, holidays)
+
+        # dataframe for collecting generated profiles
+        demand = energy_profile.set_up_df(year, resolution, freq)
+
+        # excel class
+        load_profile = LoadProfile(result.gdf, result_path)
+
+        for row in load_profile.net_result.itertuples(index=False):
+            building_type = row.Lastprofil
+            building_class = 3 # Baualtersklasse NRW:3 Quelle:Praxisinformation P 2006 / 8 Gastransport / Betriebswirtschaft, BGW, 2006, Seite 43 Tabelle 2 und 3 -->"C:\Users\Lars_Goray\Desktop\Wärmenetzplanung\Literatur\WICHTIG_3.5_standardlastprofile_bgw_information_lastprofile.pdf"
+            if pd.isna(building_type):
+                break
+            elif building_type.lower() not in ('efh', 'mfh'):
+                building_class = 0
+            hd = row[2]
+            demand[building_type] = energy_profile.create_heat_demand_profile(building_type, building_class, 0, 1, hd)
+
+        # add sum column for all buildings
+        demand_with_sum_buildings = load_profile.add_sum_buildings(demand)
+
+        # add loss
+        demand_with_loss = load_profile.add_loss(demand_with_sum_buildings, load_profile.net_result, resolution)
+        
+        # add sum buildings+loss
+        demand_with_sum = load_profile.add_sum(demand_with_loss)
+
+        # plot and save fig
+        energy_profile.plot_bar_chart(demand_with_sum, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil.png')
+
+        # order
+        sorted_demand = demand_with_sum.sort_values(by='Gesamtsumme', ascending=False)
+
+        # plot and save fig
+        energy_profile.plot_bar_chart(sorted_demand, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil_geordnet.png')
+
+        # save demand profile in excel
+        load_profile.safe_in_excel(demand_with_sum, index_bool=True)
+
+        # save load curve plot in excel
+        load_profile.embed_image_in_excel(0,demand_with_sum.shape[1]+1, image_filename = self.project_dir+'/Lastprofil.png')
+
+        # save sorted load curve plot in excel
+        load_profile.embed_image_in_excel(20,demand_with_sum.shape[1]+1, image_filename = self.project_dir+'/Lastprofil_geordnet.png')
+
+        # open result
+        load_profile.open_excel_file()
+
+        # update progressBar
+        self.dlg.net_progressBar.setValue(100)
+        # feedback
+        self.dlg.net_label_response.setText('Completed')
+        self.dlg.net_label_response.setStyleSheet("color: green")
+        self.dlg.net_label_response.repaint()
 
     def run(self):
         """Run method that performs all the real work"""
@@ -921,6 +1003,9 @@ class HeatNetTool:
 
             # start network analysis
             self.dlg.net_pushButton_start.clicked.connect(self.network_analysis)
+
+            # create result file
+            self.dlg.net_pushButton_create_result.clicked.connect(self.create_result)
 
         # updates when tab is changed
         self.dlg.tabWidget.currentChanged.connect(self.tab_change)
