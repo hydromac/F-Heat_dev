@@ -14,11 +14,47 @@ import subprocess
 from openpyxl.drawing.image import Image
 
 class Temperature:
+    '''
+    A class to handle temperature data from a specified URL.
+
+    Attributes
+    ----------
+    url : str
+        Base URL for temperature data.
+    url_all : str
+        URL for the file containing station descriptions.
+
+    Methods
+    -------
+    stationsfromtxt():
+        Retrieves and processes station data from the URL.
+    nearestStation(poi, gdf, year, i=10):
+        Finds the nearest station to a given point of interest (POI) for a specific year.
+    tempdata(url, station_id, year, start_date, end_date, n=10):
+        Loads and returns mean temperature data from the last n years as a DataFrame.
+    '''
+
     def __init__(self,url):
+        '''
+        Initializes the Temperature class with the base URL for temperature data.
+
+        Parameters
+        ----------
+        url : str
+            Base URL for temperature data.
+        '''
         self.url = url
         self.url_all = url + 'TU_Stundenwerte_Beschreibung_Stationen.txt'
   
     def stationsfromtxt(self):
+        '''
+        Retrieves and processes weather station data from the URL.
+
+        Returns
+        -------
+        GeoDataFrame
+            A GeoDataFrame with station data including geometry for spatial operations.
+        '''
         # open file from url
         # replace the whitespaces by ; - take attention to column "Stationsname" as these names may be separated by whitespace but should not match to different columns
         filestring = ''
@@ -52,33 +88,67 @@ class Temperature:
 
     def nearestStation(self, poi, gdf, year, i=10):
         '''
-        searches gdf for number of nearest stations to point(x,y) - x,y in EPSG:25832 / UTM32N / ETRS89
-        poi: Point of interest. Place where temp data is needed
-        gdf: gdf with all stations
-        year: year for which temperature data is wanted
+        Searches for the nearest stations to a point of interest (POI) for a specific year.
+
+        Parameters
+        ----------
+        poi : tuple
+            Point of interest (x, y) where temperature data is needed.
+        gdf : GeoDataFrame
+            GeoDataFrame with all stations.
+        year : int
+            Year for which temperature data is wanted.
+        i : int, optional
+            Number of nearest stations to consider (default is 10).
+
+        Returns
+        -------
+        GeoDataFrame
+            A GeoDataFrame with the nearest station(s).
         '''
         x = poi[0]
         y = poi[1]
-        # explizite Kopie des GeoDataFrame
         gdf_copy = gdf.copy()
 
-        # Entfernungen hinzufügen
+        # Add distances
         gdf_copy['distance'] = [Point(x, y).distance(gdf_copy['geometry'][i]) for i in gdf_copy.index]
         alt = gdf_copy.nsmallest(5, 'distance').reset_index(drop=True)
         try:
 
-            # Filtere Stationen, die das Jahr enthalten
+            # Filter stations that contain the year
             gdf_copy = gdf_copy[(gdf_copy['von_datum'] < (year-i+1) * 10000) & (gdf_copy['bis_datum'] > (year + 1) * 10000)]
 
-            # kleinste Entfernung
+            # Smallest distance
             ns = gdf_copy.nsmallest(1, 'distance').reset_index(drop=True)
             return ns
         except:
-            print('Keine Station mit den gewählten Parameter gefunden. \nAlternatieven: ')
+            print('No station found with the selected parameters. \nAlternatives: ')
             print(alt)
 
     def tempdata(self, url, station_id, year, start_date, end_date, n =10):
-        '''loads and returns mean temperature data from last 5 years as Dataframe'''
+        '''
+        Loads and returns mean temperature data from the last n years as a DataFrame.
+
+        Parameters
+        ----------
+        url : str
+            Base URL for temperature data.
+        station_id : str
+            ID of the station.
+        year : int
+            Year for which temperature data is wanted.
+        start_date : str
+            Start date for the data.
+        end_date : str
+            End date for the data.
+        n : int, optional
+            Number of years to consider (default is 10).
+
+        Returns
+        -------
+        DataFrame
+            DataFrame containing the mean temperature data.
+        '''
         zipfile = f'stundenwerte_TU_{station_id}_{start_date}_{end_date}_hist.zip'
         file = f'produkt_tu_stunde_{start_date}_{end_date}_{station_id}.txt'
         url = urllib.request.urlopen(url+zipfile)
@@ -89,7 +159,7 @@ class Temperature:
                 delimiter=';',
                 skipinitialspace=True
             )
-        # mean
+        # Mean
         dataframes = []
         for i in range(n):
             filtered_data = data[data['MESS_DATUM'].astype(str).str.startswith(str(year-i))]['TT_TU'].reset_index(drop=True)
@@ -102,15 +172,45 @@ class Temperature:
         return average_data
     
 class EnergyDemandProfile:
-    """
-    Class for simulating standard load profiles for heta and electricity based on BDEW.
+    '''
+    A class to model energy demand profiles for heating and electricity.
 
-    Parameters
+    Attributes
     ----------
     year : int
-        ...
-    """
+        The year for which the demand profiles are calculated.
+    temperature : pd.Series
+        The temperature data series for the year.
+    holidays : list
+        List of holidays in the year.
+    demand_time_series : pd.DatetimeIndex
+        Time series index for the entire year at hourly frequency.
+
+    Methods
+    -------
+    create_heat_demand_profile(building_type, building_class, wind_class, ww_incl, annual_heat_demand):
+        Creates a heating demand profile based on building characteristics and annual heat demand.
+    create_power_demand_profile(annual_electricity_demand_per_sector):
+        Creates a power demand profile based on annual electricity demand per sector.
+    plot_bar_chart(dataframe, column_names, figsize=(18, 4), colors=['blue', 'orange'], filename='../Lastprofil.png'):
+        Plots a bar chart of specified columns in a dataframe.
+    set_up_df(year, resolution, freq):
+        Creates a DataFrame for collecting generated profiles with the specified resolution and frequency.
+    '''
+
     def __init__(self, year, temperature_data, holidays):
+        '''
+        Initializes the EnergyDemandProfile class with the year, temperature data, and holidays.
+
+        Parameters
+        ----------
+        year : int
+            The year for which the demand profiles are calculated.
+        temperature_data : pd.Series
+            The temperature data series for the year.
+        holidays : list
+            List of holidays in the year.
+        '''
         self.year = year
         self.temperature = temperature_data
         self.holidays = holidays
@@ -119,20 +219,57 @@ class EnergyDemandProfile:
                                 freq='H')
 
     def create_heat_demand_profile(self, building_type, building_class, wind_class, ww_incl, annual_heat_demand):
-        # Baualtersklasse 1-11. NRW:3 Quelle:Praxisinformation P 2006 / 8 Gastransport / Betriebswirtschaft, BGW, 2006, Seite 43 Tabelle 2 und 3 
+        '''
+         Creates a heating demand profile based on building characteristics and annual heat demand.
+
+        Parameters
+        ----------
+        building_type : str
+            The type of the building (e.g. EFH = Einfamilienhaus).
+        building_class : int
+            The building age class (1-11).
+        wind_class : int
+            The wind load class.
+        ww_incl : bool
+            Whether domestic hot water (DHW) is included.
+        annual_heat_demand : float
+            The annual heat demand in MWh.
+
+        Returns
+        -------
+        pd.Series
+            The generated heat demand profile.
+        '''
+        # Building age class 1-11. NRW=3, source: Praxisinformation P 2006 / 8 Gastransport / Betriebswirtschaft, BGW, 2006, Seite 43 Tabelle 2 und 3 
         heat_demand = bdew.HeatBuilding(self.demand_time_series, holidays=self.holidays, temperature=self.temperature,
                                       shlp_type=building_type, building_class=building_class, 
                                       wind_class=wind_class, ww_incl=ww_incl, annual_heat_demand=annual_heat_demand, 
                                       name=building_type).get_bdew_profile()
         return heat_demand
 
-    def create_power_demand_profile(self, annual_electricity_demand_per_sector):
-        elec_slp = bdew.ElecSlp(self.year, holidays=self.holidays)
-        # Further logic
-        elec_demand = elec_slp.get_profile(annual_electricity_demand_per_sector)
-        return elec_demand
+    # def create_power_demand_profile(self, annual_electricity_demand_per_sector):
+    #     elec_slp = bdew.ElecSlp(self.year, holidays=self.holidays)
+    #     # Further logic
+    #     elec_demand = elec_slp.get_profile(annual_electricity_demand_per_sector)
+    #     return elec_demand
 
     def plot_bar_chart(self, dataframe, column_names, figsize=(18, 4), colors=['blue', 'orange'], filename='../Lastprofil.png'):
+        '''
+        Plots a bar chart of specified columns in a dataframe.
+
+        Parameters
+        ----------
+        dataframe : pd.DataFrame
+            The data frame containing the data to plot.
+        column_names : list
+            List of column names to plot.
+        figsize : tuple, optional
+            Size of the figure (default is (18, 4)).
+        colors : list, optional
+            List of colors for the bars (default is ['blue', 'orange']).
+        filename : str, optional
+            The filename to save the plot (default is '../Lastprofil.png').
+        '''
         plt.figure()  # new figure
         for i in range(len(column_names)):
             plt.bar(range(len(dataframe)), dataframe[column_names[i]], color=colors[i], label=column_names[i], width =1)
@@ -150,63 +287,174 @@ class EnergyDemandProfile:
         plt.close(fig)
 
     def set_up_df(self,year,resolution,freq):
-        '''Creates a DataFrame for collecting generated profiles'''
+        '''
+        Creates a DataFrame for collecting generated profiles with the specified resolution and frequency.
+
+        Parameters
+        ----------
+        year : int
+            The year for the time series index.
+        resolution : int
+            The number of periods in the time series.
+        freq : str
+            Frequency of the time series (e.g., 'H' for hourly).
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with a time series index.
+        '''
         demand = pd.DataFrame(
             index=pd.date_range(datetime.datetime(year, 1, 1, 0), periods=resolution, freq=freq))
         return demand
     
 class LoadProfile:
-    '''Class to manage methods for the excel file, where the net report is stored'''
+    '''
+    Class to manage methods for the Excel file, where the net report is stored.
+
+    Attributes
+    ----------
+    net_result : object
+        The result object containing network data.
+    path : str
+        The path to the Excel file where results are stored.
+
+    Methods
+    -------
+    sort_columns_by_sum(df):
+        Sorts the columns of a dataframe in ascending order based on their sum and returns the sorted dataframe.
+    add_loss(demand_df, df, resolution=8760):
+        Adds a loss column to the demand dataframe based on the maximum annual loss in another dataframe.
+    add_sum_buildings(df):
+        Adds a column for the sum of all building types in a dataframe and returns the modified dataframe.
+    add_sum(df):
+        Adds a total sum column that includes the sum of all building types and losses.
+    save_in_excel(df, col=0, index_bool=False, sheet_option='replace', sheet='Lastprofil'):
+        Saves the dataframe to the specified Excel file and sheet.
+    embed_image_in_excel(row, col, sheet='Lastprofil', image_filename='../Lastprofil.png'):
+        Embeds an image into the specified Excel sheet at a given position.
+    open_excel_file():
+        Opens the Excel file using the default application.
+    '''
+
     def __init__(self, net_result, excel_path):
+        '''
+        Initializes the LoadProfile class with the network result object and the path to the Excel file.
+
+        Parameters
+        ----------
+        net_result : object
+            The result object containing network data.
+        excel_path : str
+            The path to the Excel file where results are stored.
+        '''
         self.net_result = net_result
         self.path = excel_path
 
-    # def import_sheet(self,sheet=0):
-    #     '''import excel sheet data as pandas data frame'''
-    #     self.imported_df = pd.read_excel(self.path,sheet_name=sheet)
     @staticmethod
     def sort_columns_by_sum(df):
-        """
-        arranges columns of a data frame (df) in ascending order.
-        returns sorted data frame
-        """
-        # Spalten nach Summe sortieren und DataFrame neu anordnen
+        '''Sorts the columns of a dataframe in ascending order based on their sum.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            The dataframe whose columns need to be sorted.
+
+        Returns
+        -------
+        pd.DataFrame
+            Dataframe with columns sorted by their sum.
+        '''
+    
         sorted_columns = df.sum().sort_values().index
         sorted_df = df[sorted_columns]
         return sorted_df
+    
     @staticmethod
     def add_loss(demand_df, df, resolution = 8760):
+        '''
+        Adds a loss column to the demand dataframe based on the maximum annual loss in another dataframe.
+
+        Parameters
+        ----------
+        demand_df : pd.DataFrame
+            The dataframe to which the loss column will be added.
+        df : pd.DataFrame
+            The dataframe containing loss information.
+        resolution : int, optional
+            The time resolution in hours (default is 8760 for an hourly resolution over a year).
+
+        Returns
+        -------
+        pd.DataFrame
+            The modified demand dataframe with the added loss column.
+        '''
         loss_sum = df['Verlust [MWh/a]'].max()
         loss_hourly = loss_sum/resolution
         demand_df['Verlust'] = loss_hourly
         return demand_df
+    
     @staticmethod
     def add_sum_buildings(df):
-        '''Adds a sum column to a copy of a data frame and returns it'''
+        '''
+        Adds a column for the sum of all building types in a dataframe.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            The dataframe to which the sum column will be added.
+
+        Returns
+        -------
+        pd.DataFrame
+            The modified dataframe with the sum column.
+        '''
         df_with_sum = df.copy()
         df_with_sum['Summe aller Gebäudetypen'] = df.sum(axis=1)
         return df_with_sum
+    
     @staticmethod
     def add_sum(df):
+        '''
+        Adds a total sum column that includes the sum of all building types and losses.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            The dataframe to which the total sum column will be added.
+
+        Returns
+        -------
+        pd.DataFrame
+            The modified dataframe with the total sum column.
+        '''
         df_sum = df.copy()
         df_sum['Gesamtsumme'] = df_sum['Summe aller Gebäudetypen']+df_sum['Verlust']
         return df_sum
 
     def safe_in_excel(self, df, col = 0, index_bool=False, sheet_option ='replace', sheet = 'Lastprofil'):
         '''
-        saves data frame in the stated excel file
-        df: data frame
-        col: startcolumn
-        index_bool: specify if df index is added in excel
-        sheet_option: specifies the writing option for ExcelWriter--> (parameter) if_sheet_exists: Literal['error', 'new', 'replace', 'overlay']
-        sheet: desired excel sheet
+        Saves the dataframe to the specified Excel file and sheet.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            The dataframe to save.
+        col : int, optional
+            The starting column index in the Excel sheet (default is 0).
+        index_bool : bool, optional
+            Whether to include the dataframe index in the Excel file (default is False).
+        sheet_option : str, optional
+            The option for handling existing sheets (default is 'replace'). Options: 'error', 'new', 'replace', 'overlay'.
+        sheet : str, optional
+            The name of the Excel sheet (default is 'Lastprofil').
         '''
         filename = self.path
-        # open excel file and write the data frame in stated sheet
+        # Open excel file and write the data frame in stated sheet
         with pd.ExcelWriter(filename, engine='openpyxl', mode='a', if_sheet_exists=sheet_option) as writer:
             df.to_excel(writer, sheet_name=sheet, index=index_bool, startcol=col)
 
-        # adjust cell size
+        # Adjust cell size
         wb = load_workbook(filename = filename)        
         ws = wb[sheet]
         for col in ws.columns:
@@ -223,21 +471,31 @@ class LoadProfile:
         wb.save(filename)
 
     def embed_image_in_excel(self, row, col, sheet = 'Lastprofil', image_filename = '../Lastprofil.png'):
+        '''
+        Embeds an image into the specified Excel sheet at a given position.
+
+        Parameters
+        ----------
+        row : int
+            The row index where the image should be placed.
+        col : int
+            The column index where the image should be placed.
+        sheet : str, optional
+            The name of the Excel sheet (default is 'Lastprofil').
+        image_filename : str, optional
+            The filename of the image to embed (default is '../Lastprofil.png').
+        '''
         filename = self.path
-        # Laden Sie die vorhandene Excel-Datei
         workbook = load_workbook(filename)
-
-        # Holen Sie sich das Arbeitsblatt
         worksheet = workbook[sheet]
-
-        # Fügen Sie das Bild in das Excel-Sheet ein
         img = Image(image_filename)
         worksheet.add_image(img, f'{chr(65 + col)}{row + 1}')
-
-        # Speichern Sie die Excel-Datei
         workbook.save(filename)
 
     def open_excel_file(self):
+        '''
+        Opens the Excel file using the default application.
+        '''
         try:
             subprocess.Popen(['start', 'excel', self.path], shell=True)
         except Exception as e:

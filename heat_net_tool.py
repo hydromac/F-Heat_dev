@@ -81,8 +81,6 @@ class HeatNetTool:
         # Must be set in initGui() to survive plugin reloads
         self.first_start = None
 
-        
-
         # Gemarkung (Name and info of municipalities and cities in NRW)
         self.gemarkungen_df = pd.DataFrame()
 
@@ -197,31 +195,61 @@ class HeatNetTool:
             self.iface.removeToolBarIcon(action)
 
     def install_package(self,package_list):
-        """installs python packages with pip"""
+        '''
+        Installs Python packages using pip.
+
+        Parameters
+        ----------
+        package_list : list of str
+            List of package names to be installed.
+
+        Returns
+        -------
+        None
+        '''
         for package in package_list:
             try:
-                # Führt den Befehl "pip install" aus, um das Paket zu installieren
+                # Execute the "pip install" command to install the package
                 subprocess.check_call(["pip", "install", "--upgrade", package])
-                print(f"{package} wurde erfolgreich installiert.")
+                print(f"{package} was successfully installed.")
             except subprocess.CalledProcessError:
-                print(f"Fehler beim Installieren von {package}.")
+                print(f"Error installing {package}.")
 
     def select_output_file(self, dir, lineEdit, filetype):
+        '''
+        Opens a file dialog to select an output file and sets the selected path to a QLineEdit.
 
+        Parameters
+        ----------
+        dir : str
+            The directory to start the file dialog in.
+        lineEdit : QLineEdit
+            The QLineEdit widget to display the selected file path.
+        filetype : str
+            The file type filter for the dialog (e.g., "*.txt").
+
+        Returns
+        -------
+        None
+        '''
         filename, _filter = QFileDialog.getSaveFileName(
             self.dlg, "Select output file ",dir, filetype)
         lineEdit.setText(filename)
 
     def get_layer_path_from_combobox(self, combobox):
-        """
-        Get the path of the selected layer from the given ComboBox.
+        '''
+        Gets the path of the selected layer from the given ComboBox.
 
-        :param combobox: The QComboBox object representing the layer selection.
-        :type combobox: QComboBox
+        Parameters
+        ----------
+        combobox : QComboBox
+            The QComboBox object representing the layer selection.
 
-        :return: The path of the selected layer.
-        :rtype: str
-        """
+        Returns
+        -------
+        tuple
+            A tuple containing the path of the selected layer (str), the layer name (str), and the selected layer object (QgsVectorLayer). Returns (None, None, None) if no layer is found.
+        '''
         # Get the name of the selected layer from the ComboBox
         selected_layer_name = combobox.currentText()
 
@@ -247,7 +275,20 @@ class HeatNetTool:
             return None, None, None
 
     def add_shapefile_to_project(self, shapefile_path, style=None):
-        """Add a shapefile to the QGIS project."""
+        '''
+        Adds a shapefile to the QGIS project.
+
+        Parameters
+        ----------
+        shapefile_path : str
+            The file path of the shapefile to add.
+        style : str, optional
+            The name of the style to apply to the layer. Options include 'hld', 'polygons', 'net', 'streets', 'buildings', 'parcels'.
+
+        Returns
+        -------
+        None
+        '''
         layer_name = os.path.splitext(os.path.basename(shapefile_path))[0]
         layer = QgsVectorLayer(path=shapefile_path, baseName=layer_name, providerLib='ogr')
         if not layer.isValid():
@@ -265,6 +306,10 @@ class HeatNetTool:
             style_path = self.plugin_dir + '/layerstyles/polygons.qml'
             layer.loadNamedStyle(style_path)
 
+        if style == 'net':
+            style_path = self.plugin_dir + '/layerstyles/net.qml'
+            layer.loadNamedStyle(style_path)
+
         if style == 'streets':
             style_path = self.plugin_dir + '/layerstyles/streets.qml'
             layer.loadNamedStyle(style_path)
@@ -278,8 +323,15 @@ class HeatNetTool:
             layer.loadNamedStyle(style_path)
 
     def load_download_options(self):
-        '''download municipality and city names of NRW to comboBoxes'''
+        '''
+        Loads municipality and city names of NRW into comboBoxes.
 
+        This method reads an Excel file containing information about municipalities and cities, and populates comboBoxes with this information.
+
+        Returns
+        -------
+        None
+        '''
         path = Path(self.plugin_dir) / 'cities.xlsx'
         df = pd.read_excel(path, dtype={'schluessel': str, 'gmdschl': str})
 
@@ -300,7 +352,14 @@ class HeatNetTool:
     # Methods for loading layers and attributes to comboboxes
 
     def get_all_loaded_layers(self):
-        """Get a list of all loaded layers in the project, including layers within groups."""
+        '''
+        Get a list of all loaded layers in the project, including layers within groups.
+
+        Returns
+        -------
+        list of QgsMapLayer
+            A list containing all the loaded layers in the current QGIS project.
+        '''
         root = QgsProject.instance().layerTreeRoot()
         all_layers = root.layerOrder()
         loaded_layers = []
@@ -312,7 +371,18 @@ class HeatNetTool:
         return loaded_layers
 
     def load_layers_to_combobox(self, combobox):
-        '''loads layers to selected combobox'''
+        '''
+        Load names of all the loaded layers into a QComboBox.
+
+        Parameters
+        ----------
+        combobox : QComboBox
+            The ComboBox widget to populate with layer names.
+
+        Returns
+        -------
+        None
+        '''
         # Fetch the currently loaded layers
         layers = self.get_all_loaded_layers()
         # Clear the contents of the comboBox from previous runs
@@ -325,7 +395,20 @@ class HeatNetTool:
         combobox.setCurrentIndex(0)
     
     def load_attributes_to_combobox(self, layer_name, combobox):
-        """Load attributes of the selected layer to the given combobox."""
+        '''
+        Load attributes of the selected layer into a QComboBox.
+
+        Parameters
+        ----------
+        layer_name : str
+            The name of the layer whose attributes are to be loaded.
+        combobox : QComboBox
+            The ComboBox widget to populate with attribute names.
+
+        Returns
+        -------
+        None
+        '''
         # Find the layer by its name
         layer = QgsProject.instance().mapLayersByName(layer_name)[0]  # Assuming unique names
         # Clear the contents of the comboBox from previous runs
@@ -340,7 +423,20 @@ class HeatNetTool:
         combobox.setCurrentIndex(0)
 
     def load_attributes(self, combobox_in, combobox_out):
-        """Load attributes of the selected layer in combobox_in to the given combobox_out."""
+        '''
+        Load attributes of the layer selected in one combobox into another combobox.
+
+        Parameters
+        ----------
+        combobox_in : str
+            The name of the ComboBox widget containing the layer selection.
+        combobox_out : str
+            The name of the ComboBox widget to populate with attribute names.
+
+        Returns
+        -------
+        None
+        '''
         # Get the current layer name selected in the specified combobox
         layer_name = getattr(self.dlg, combobox_in).currentText()
 
@@ -351,7 +447,13 @@ class HeatNetTool:
             self.load_attributes_to_combobox(layer_name, getattr(self.dlg, combobox_out))
     
     def tab_change(self):
-        '''Updates when tab is changed'''
+        '''
+        Update ComboBoxes with loaded layers when the tab is changed.
+
+        Returns
+        -------
+        None
+        '''
         # Load layers into comboBoxes
         self.load_layers_to_combobox(self.dlg.adjust_comboBox_buildings)
         self.load_layers_to_combobox(self.dlg.adjust_comboBox_parcels)
@@ -371,15 +473,37 @@ class HeatNetTool:
         Downloads and processes shapefiles for buildings, streets, and parcels for a selected city or municipality.
 
         This function performs the following steps:
-        1. Updates a progress bar.
-        2. Determines the selected city or municipality from a GUI.
-        3. Filters a DataFrame for the selected city or municipality.
-        4. Downloads and processes shapefiles for buildings and streets from a given URL.
-        5. Downloads and processes parcel data from a WFS service.
-        6. Filters building and street data to include only shapes within the parcels if a city is selected.
-        7. Saves the processed shapefiles to specified paths.
-        8. Loads the shapefiles into a GIS project.
-        9. Updates the progress bar and provides feedback in the GUI.
+
+        1. **Progress Bar Initialization**:
+        - Sets the progress bar to 0, indicating the start of the download and processing operation.
+
+        2. **Determine Selection**:
+        - Retrieves the selected city or municipality from the graphical user interface (GUI).
+        - Checks whether a city or municipality is selected and sets the appropriate parameter.
+
+        3. **Filter DataFrame**:
+        - Filters a DataFrame (`gemarkungen_df`) for the selected city or municipality based on the user’s selection.
+
+        4. **Download Buildings Shapefiles**:
+        - Accesses the URL for building data and downloads the relevant shapefiles based on the municipality key.
+
+        5. **Download Streets Shapefiles**:
+        - Accesses the URL for street data and downloads the relevant shapefiles based on the municipality key.
+
+        6. **Download Parcel Data**:
+        - Accesses a Web Feature Service (WFS) to download parcel data, ensuring that if a city is selected, only the relevant parcels are retrieved.
+
+        7. **Filter Geometries**:
+        - If only a city is selected, filters the building and street data to include only geometries that intersect with the selected parcels.
+
+        8. **Save Shapefiles**:
+        - Saves the processed building, street, and parcel shapefiles to specified paths.
+
+        9. **Load Shapefiles into GIS Project**:
+        - Loads the saved shapefiles into the GIS project, applying appropriate styling.
+
+        10. **Progress and Feedback Updates**:
+            - Updates the progress bar throughout the process and provides feedback in the GUI about the current status, ending with a completion message.
 
         Parameters
         ----------
@@ -496,13 +620,49 @@ class HeatNetTool:
         self.dlg.load_label_feedback.setStyleSheet("color: green")
         self.dlg.load_label_feedback.setText('Download complete!')
 
-        # except Exception as e:
-        #     self.dlg.load_label_feedback.setStyleSheet("color: red")
-        #     self.dlg.load_label_feedback.setText(f'Error downloading shapefiles: {e}')
-        #     print(f'Error downloading shapefiles: {e}')
-
     def adjust_files(self):
+        '''
+        Adjust and process building, street, and parcel data layers in a GIS project.
 
+        This method performs several operations on geospatial data, including:
+        
+        1. **Initialization**:
+        - Sets the initial value of the progress bar and provides feedback to the user interface.
+
+        2. **Parameter Definitions**:
+        - Defines the heat demand attribute (`heat_att`) and building age class bins (`bak_bins`) and labels (`bak_labels`).
+
+        3. **Data Loading**:
+        - Reads additional building information from an Excel file.
+
+        4. **Layer Path and Object Retrieval**:
+        - Retrieves file paths and layer objects for streets, buildings, and parcels from the selected options in the user interface.
+
+        5. **Adjustment Class Initialization**:
+        - Initializes instances of `Parcels_adj`, `Buildings_adj`, and `Streets_adj` classes for data processing.
+
+        6. **Building Data Adjustments**:
+        - **Heat Demand Filtering**: Filters out buildings without heat demand.
+        - **Spatial Join**: Joins buildings with parcels to add building age information.
+        - **Age Class Addition**: Adds building age classes and LANUV age information.
+        - **Load Profile Addition**: Integrates load profiles from the Excel data.
+        - **Data Cleanup**: Drops unwanted attributes and adds power information.
+        - **ID Assignment**: Assigns new IDs to buildings and merges building data as needed.
+
+        7. **Street Data Adjustments**:
+        - Rounds street coordinates and adds a boolean column to indicate possible routes.
+
+        8. **Saving and Layer Update**:
+        - Determines whether to create new files or overwrite existing ones based on user input.
+        - Saves the modified shapefiles and updates the QGIS project layers accordingly.
+
+        9. **Completion**:
+        - Finalizes the progress bar and provides completion feedback.
+
+        Returns
+        -------
+        None
+        '''
         # update progressBar
         self.dlg.adjust_progressBar.setValue(0)
 
@@ -585,6 +745,50 @@ class HeatNetTool:
             self.dlg.adjust_label_feedback.repaint()
 
     def status_analysis(self):
+        '''
+         Perform a status analysis of building and street data, updating the GIS project with new attributes and geometries.
+
+        This method conducts an analysis that involves the following steps:
+
+        1. **Progress Bar Initialization**:
+        - Sets the initial value of the progress bar to indicate the start of the process.
+
+        2. **Layer Path Retrieval**:
+        - Retrieves paths and layer objects for streets, parcels, and buildings from the respective combo boxes in the user interface.
+
+        3. **Attribute Selection**:
+        - Retrieves the selected heat and power attributes from the combo boxes.
+
+        4. **Output Path Specification**:
+        - Specifies the file path for saving the polygon data from a line edit field.
+
+        5. **Geospatial Data Loading**:
+        - Reads the shapefiles for streets, parcels, and buildings into GeoDataFrames.
+
+        6. **Warmth Load Density (WLD) Calculation**:
+        - Initializes a `WLD` object with the loaded buildings and streets.
+        - Calculates the centroid for buildings.
+        - Identifies the closest street to each building.
+        - Adds the length of connections between buildings and streets.
+        - Adds the specified heat attribute and calculates the Warmth Load Density (WLD).
+        - Updates the streets GeoDataFrame with the new attributes and saves it back to a shapefile.
+        - Adds the updated street layer to the GIS project with a specific style.
+
+        7. **Polygon Processing**:
+        - Initializes a `Polygons` object with the parcels, updated streets, and buildings.
+        - Selects parcels based on their connection to buildings within a specified distance.
+        - Applies a buffer, dissolve, and explode operation to refine the polygon geometries.
+        - Adds the specified heat and power attributes to the polygons.
+        - Saves the processed polygons to a shapefile.
+        - Adds the updated polygon layer to the GIS project with a specific style.
+
+        8. **Completion**:
+        - Updates the progress bar to indicate the completion of the analysis.
+
+        Returns
+        -------
+        None
+        '''
         # update progressBar
         self.dlg.status_progressBar.setValue(0)
 
@@ -637,144 +841,285 @@ class HeatNetTool:
         self.dlg.status_progressBar.setValue(100) # update progressBar
 
     def network_analysis(self):
-        #try:
-            # update progressBar
-            self.dlg.net_progressBar.setValue(0)
+        '''
+        Conduct a network analysis for a district heating system, including setup, data loading,
+        and computation of the optimal network path based on building heat demand and street layout.
 
-            # feedback
-            self.dlg.net_label_response.setText('Calculating...')
-            self.dlg.net_label_response.setStyleSheet("color: orange")
-            self.dlg.net_label_response.repaint()
+        This method performs the following steps:
 
-            # pipe info
-            excel_file_path = Path(self.plugin_dir) / 'pipe_data.xlsx'
-            pipe_info = pd.read_excel(excel_file_path, sheet_name='pipe_data')
+        1. **Progress Bar Initialization**:
+        - Initializes the progress bar to indicate the start of the analysis.
 
-            # Temperatures from SpinBox
-            t_supply = self.dlg.net_doubleSpinBox_supply.value()
-            t_return = self.dlg.net_doubleSpinBox_return.value()
+        2. **User Feedback**:
+        - Displays an initial status message indicating that calculations are in progress.
 
-            # Layer paths
-            source_path, source_layer, source_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_source)
-            streets_path, streets_layer, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_streets)
-            buildings_path, buildings_layer, buildings_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_buildings)
-            
-            heat_attribute = self.dlg.net_comboBox_heat.currentText()
-            power_attribute = self.dlg.net_comboBox_power.currentText()
+        3. **Load Pipe Data**:
+        - Loads pipe data from an Excel file for use in the network analysis.
 
-            # path to save net shape file
-            shape_path = self.dlg.net_lineEdit_net.text()
+        4. **Retrieve Temperatures**:
+        - Retrieves supply and return temperatures from SpinBoxes in the user interface.
 
-            # update progressBar
-            self.dlg.net_progressBar.setValue(2)
+        5. **Retrieve Layer Paths**:
+        - Retrieves the file paths and objects for source, streets, and buildings layers from combo boxes.
 
-            # Instantiate classes
-            buildings = Buildings(buildings_path, heat_attribute, buildings_layer)
-            source = Source(source_path, source_layer)
-            streets = Streets(streets_path, streets_layer)
-            
-            # check if polygon checkbox is checked
+        6. **Select Attributes**:
+        - Retrieves the selected heat and power attributes from combo boxes.
+
+        7. **Specify Output Path**:
+        - Retrieves the path for saving the resulting network shapefile from a line edit field.
+
+        8. **Progress Bar Update**:
+        - Updates the progress bar to reflect the completion of data retrieval steps.
+
+        9. **Instantiate Classes**:
+        - Creates instances of classes for buildings, source, and streets, loading the respective data.
+
+        10. **Polygon Filtering**:
+            - If a polygon is selected, filters buildings to those within the polygon boundaries.
+
+        11. **Drop Unwanted Routes**:
+            - Removes street segments marked as not possible routes, if the attribute exists.
+
+        12. **Create Connection Points**:
+            - Adds centroids to buildings and finds closest points to streets.
+            - Establishes connection points for sources to the street network.
+
+        13. **Graph Construction**:
+            - Constructs a network graph based on street geometry.
+            - Connects building centroids and source points to the graph.
+            - Adds edge attributes, such as length, to the graph.
+
+        14. **Connectivity Check**:
+            - Verifies that all points in the network are connected.
+            - If not, provides feedback and visualization to assist in fixing disconnections.
+
+        15. **Progress Bar Update**:
+            - Updates the progress bar after constructing the graph.
+
+        16. **Network Analysis**:
+            - Creates a `Net` object and performs a detailed network analysis, computing the optimal network for heat distribution based on the supply and return temperatures, pipe data, and building attributes.
+
+        17. **GeoDataFrame Creation and Saving**:
+            - Converts the graph to a GeoDataFrame with the computed network.
+            - Saves the GeoDataFrame as a shapefile at the specified output path.
+
+        18. **Add Layer to Project**:
+            - Adds the resulting network shapefile as a layer in the GIS project.
+
+        19. **Completion**:
+            - Finalizes the progress bar and provides user feedback indicating the successful completion of the network analysis.
+
+        20. **Error Handling**:
+            - Logs any exceptions encountered during the process and exits gracefully.
+
+        Returns
+        -------
+        None
+        '''
+        # update progressBar
+        self.dlg.net_progressBar.setValue(0)
+
+        # feedback
+        self.dlg.net_label_response.setText('Calculating...')
+        self.dlg.net_label_response.setStyleSheet("color: orange")
+        self.dlg.net_label_response.repaint()
+
+        # pipe info
+        excel_file_path = Path(self.plugin_dir) / 'pipe_data.xlsx'
+        pipe_info = pd.read_excel(excel_file_path, sheet_name='pipe_data')
+
+        # Temperatures from SpinBox
+        t_supply = self.dlg.net_doubleSpinBox_supply.value()
+        t_return = self.dlg.net_doubleSpinBox_return.value()
+
+        # Layer paths
+        source_path, source_layer, source_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_source)
+        streets_path, streets_layer, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_streets)
+        buildings_path, buildings_layer, buildings_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_buildings)
+        
+        heat_attribute = self.dlg.net_comboBox_heat.currentText()
+        power_attribute = self.dlg.net_comboBox_power.currentText()
+
+        # path to save net shape file
+        shape_path = self.dlg.net_lineEdit_net.text()
+
+        # update progressBar
+        self.dlg.net_progressBar.setValue(2)
+
+        # Instantiate classes
+        buildings = Buildings(buildings_path, heat_attribute, buildings_layer)
+        source = Source(source_path, source_layer)
+        streets = Streets(streets_path, streets_layer)
+        
+        # check if polygon checkbox is checked
+        if self.dlg.net_checkBox_polygon.isChecked():
+            polygon_path, polygon_layer, polygon_layer_obj  = self.get_layer_path_from_combobox(self.dlg.net_comboBox_polygon)
+            # load polygon as gdf
+            if polygon_layer == None:
+                polygon = gpd.read_file(polygon_path)
+            else: 
+                polygon = gpd.read_file(polygon_path, layer=polygon_layer)
+
+            # only buildings within polygon
+            buildings.gdf = gpd.sjoin(buildings.gdf, polygon, how="inner", predicate="within")
+
+        # Drop unwanted routes if existing
+        try:
+            streets.gdf = streets.gdf[streets.gdf['possible_route']==1]
+        except:
+            pass
+
+        # update progressBar
+        self.dlg.net_progressBar.setValue(5)
+
+        # create connection points
+        buildings.add_centroid()
+        buildings.closest_points_buildings(streets.gdf)
+        source.closest_points_sources(streets.gdf)
+        streets.add_connection_to_streets(buildings.gdf, source.gdf)
+
+        # update progressBar
+        self.dlg.net_progressBar.setValue(15)
+
+        # Graph erstellen
+        graph = Graph()
+        graph.create_street_network(streets.gdf)
+        graph.connect_centroids(buildings.gdf)
+        graph.connect_source(source.gdf)
+        graph.add_attribute_length()
+
+        # test connection
+        start_point = (source.gdf['geometry'][0].x, source.gdf['geometry'][0].y)
+        connected_points = graph.get_connected_points(start_point)
+        all_points = list(graph.graph.nodes)
+        if start_point not in connected_points:
+            connected_points.append(start_point)
+        if len(all_points) > len(connected_points):
+            print(len(all_points), len(connected_points))
+            # check if polygon is activated
             if self.dlg.net_checkBox_polygon.isChecked():
-                polygon_path, polygon_layer, polygon_layer_obj  = self.get_layer_path_from_combobox(self.dlg.net_comboBox_polygon)
-                # load polygon as gdf
-                if polygon_layer == None:
-                    polygon = gpd.read_file(polygon_path)
-                else: 
-                    polygon = gpd.read_file(polygon_path, layer=polygon_layer)
-
-                # only buildings within polygon
-                buildings.gdf = gpd.sjoin(buildings.gdf, polygon, how="inner", predicate="within")
-
-            # Drop unwanted routes if existing
-            try:
-                streets.gdf = streets.gdf[streets.gdf['possible_route']==1]
-            except:
-                pass
-
-            # update progressBar
-            self.dlg.net_progressBar.setValue(5)
-
-            # create connection points
-            buildings.add_centroid()
-            buildings.closest_points_buildings(streets.gdf)
-            source.closest_points_sources(streets.gdf)
-            streets.add_connection_to_streets(buildings.gdf, source.gdf)
-
-            # update progressBar
-            self.dlg.net_progressBar.setValue(15)
-
-            # Graph erstellen
-            graph = Graph()
-            graph.create_street_network(streets.gdf)
-            graph.connect_centroids(buildings.gdf)
-            graph.connect_source(source.gdf)
-            graph.add_attribute_length()
-
-            # test connection
-            start_point = (source.gdf['geometry'][0].x, source.gdf['geometry'][0].y)
-            connected_points = graph.get_connected_points(start_point)
-            all_points = list(graph.graph.nodes)
-            if start_point not in connected_points:
-                connected_points.append(start_point)
-            if len(all_points) > len(connected_points):
-                print(len(all_points), len(connected_points))
-                # check if polygon is activated
-                if self.dlg.net_checkBox_polygon.isChecked():
-                    # check if disconnected points are inside the polygon
-                    disconnected_points = [point for point in all_points if point not in connected_points and point != start_point]
-                    print( f'disconnected nodes: {len(disconnected_points)}')
-                    print(disconnected_points)
-                    if any(polygon['geometry'][0].contains(Point(point)) for point in disconnected_points):
-                        # feedback
-                        self.dlg.net_label_response.setText('Some points of the street network in your area are not connected! Please set their "possible_route"-attribute to zero or connect them to the street network by using the snapping tool.')
-                        self.dlg.net_label_response.setStyleSheet("color: red")
-                        self.dlg.net_label_response.repaint()
-                        graph.plot_graph(start_point, connected_points)
-                        raise RuntimeError("Some points of the street network in your area are not connected!")
-                else:
-                    disconnected_points = [point for point in all_points if point not in connected_points and point != start_point]
-                    print( f'{len(disconnected_points)} disconnected nodes')
-                    print(disconnected_points)
+                # check if disconnected points are inside the polygon
+                disconnected_points = [point for point in all_points if point not in connected_points and point != start_point]
+                print( f'disconnected nodes: {len(disconnected_points)}')
+                print(disconnected_points)
+                if any(polygon['geometry'][0].contains(Point(point)) for point in disconnected_points):
                     # feedback
-                    self.dlg.net_label_response.setText('Some points of the street network are not connected! Please set their "possible_route"-attribute to zero or connect them to the street network by using the snapping tool.')
+                    self.dlg.net_label_response.setText('Some points of the street network in your area are not connected! Please set their "possible_route"-attribute to zero or connect them to the street network by using the snapping tool.')
                     self.dlg.net_label_response.setStyleSheet("color: red")
                     self.dlg.net_label_response.repaint()
                     graph.plot_graph(start_point, connected_points)
-                    raise RuntimeError("Some points of the street network are not connected!")
+                    raise RuntimeError("Some points of the street network in your area are not connected!")
+            else:
+                disconnected_points = [point for point in all_points if point not in connected_points and point != start_point]
+                print( f'{len(disconnected_points)} disconnected nodes')
+                print(disconnected_points)
+                # feedback
+                self.dlg.net_label_response.setText('Some points of the street network are not connected! Please set their "possible_route"-attribute to zero or connect them to the street network by using the snapping tool.')
+                self.dlg.net_label_response.setStyleSheet("color: red")
+                self.dlg.net_label_response.repaint()
+                graph.plot_graph(start_point, connected_points)
+                raise RuntimeError("Some points of the street network are not connected!")
 
-            # update progressBar
-            self.dlg.net_progressBar.setValue(30)
+        # update progressBar
+        self.dlg.net_progressBar.setValue(30)
 
 
-            ### Net Analysis ###
-            net = Net(t_supply,t_return)
-            net.network_analysis(graph.graph, buildings.gdf, source.gdf, pipe_info, power_att=power_attribute, progressBar=self.dlg.net_progressBar)
+        ### Net Analysis ###
+        net = Net(t_supply,t_return)
+        net.network_analysis(graph.graph, buildings.gdf, source.gdf, pipe_info, power_att=power_attribute, progressBar=self.dlg.net_progressBar)
 
-            # update progressBar
-            self.dlg.net_progressBar.setValue(45)
+        # update progressBar
+        self.dlg.net_progressBar.setValue(45)
 
-            # GeoDataFrame from net
-            net.ensure_power_attribute()
-            net.graph_to_gdf(crs = self.epsg_code)
-            
-            # save net shape
-            net.gdf.to_file(shape_path)
+        # GeoDataFrame from net
+        net.ensure_power_attribute()
+        net.graph_to_gdf(crs = self.epsg_code)
+        
+        # save net shape
+        net.gdf.to_file(shape_path)
 
-            # load net as layer
-            self.add_shapefile_to_project(shape_path)
+        # load net as layer
+        self.add_shapefile_to_project(shape_path, 'net')
 
-            # update progressBar
-            self.dlg.net_progressBar.setValue(100)
-            # feedback
-            self.dlg.net_label_response.setText('Completed')
-            self.dlg.net_label_response.setStyleSheet("color: green")
-            self.dlg.net_label_response.repaint()
-
-        # except Exception as e:
-        #     QgsMessageLog.logMessage(str(e), 'Network Analysis', Qgis.Critical)
-        #     return
+        # update progressBar
+        self.dlg.net_progressBar.setValue(100)
+        # feedback
+        self.dlg.net_label_response.setText('Completed')
+        self.dlg.net_label_response.setStyleSheet("color: green")
+        self.dlg.net_label_response.repaint()
 
     def create_result(self):
+        '''
+        Generate and save the results of the network analysis, including a detailed
+        energy demand profile and associated data for a district heating system.
+
+        This method performs the following steps:
+
+        1. **Progress Bar Initialization**:
+        - Sets the progress bar to 0, indicating the start of the result creation process.
+
+        2. **User Feedback**:
+        - Displays an initial status message indicating that calculations are in progress.
+
+        3. **Load Pipe Data**:
+        - Loads pipe information from an Excel file, including pipe diameters (DN).
+
+        4. **Define Load Profiles**:
+        - Sets the load profiles for different building types (e.g., EFH, MFH).
+
+        5. **Retrieve Temperature Values**:
+        - Retrieves the supply and return temperatures from the user interface.
+
+        6. **Retrieve Layer Paths**:
+        - Gets file paths and objects for source, streets, and buildings layers from combo boxes.
+
+        7. **Select Attributes**:
+        - Retrieves selected heat and power attributes from the user interface.
+
+        8. **Load Network Shapefile**:
+        - Loads the network data from the specified shapefile path.
+
+        9. **Instantiate Classes**:
+        - Creates instances of relevant classes for buildings, source, and streets.
+
+        10. **Polygon Filtering**:
+            - If a polygon is selected, filters buildings to include only those within the polygon boundaries.
+
+        11. **Progress Bar Update**:
+            - Updates the progress bar after loading and preparing data.
+
+        12. **Create Result Data Structure**:
+            - Initializes the `Result` class and prepares a data dictionary from the buildings and network data.
+
+        13. **Generate DataFrame**:
+            - Converts the data dictionary into a DataFrame and saves it as an Excel file.
+
+        14. **Load Curve Generation**:
+            - If a temperature file is provided, loads the temperature data; otherwise, retrieves historical temperature data from an external source.
+
+        15. **Energy Demand Profile Creation**:
+            - Creates a time series DataFrame for energy demand based on load profiles, temperature data, and building heat demand.
+
+        16. **Aggregate Demand and Losses**:
+            - Adds a column for the sum of all buildings' demands and calculates losses. 
+            - Adds a total column that includes both the demand and losses.
+
+        17. **Visualization**:
+            - Plots and saves bar charts for the energy demand profile and sorted demand profile.
+
+        18. **Save and Embed Results**:
+            - Saves the demand profile in an Excel file and embeds the generated plots as images.
+
+        19. **Open Result File**:
+            - Opens the resulting Excel file for user review.
+
+        20. **Completion**:
+            - Updates the progress bar to 100% and displays a completion message to the user.
+
+        Returns
+        -------
+        None
+        '''
         # update progressBar
         self.dlg.net_progressBar.setValue(0)
 
@@ -957,6 +1302,7 @@ class HeatNetTool:
             self.epsg_code = project_crs.authid()
 
             ### Load ###
+
             # download options
             self.load_download_options()
             
