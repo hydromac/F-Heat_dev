@@ -40,11 +40,11 @@ from pathlib import Path
 from shapely import Point
 from workalendar.europe import Germany
 
-from .download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs
-from .adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
-from .status_analysis import WLD, Polygons
-from .net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
-from .load_curve import Temperature, EnergyDemandProfile, LoadProfile
+from .src.download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs
+from .src.adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
+from .src.status_analysis import WLD, Polygons
+from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
+from .src.load_curve import Temperature, EnergyDemandProfile, LoadProfile
 
 class HeatNetTool:
     """QGIS Plugin Implementation."""
@@ -332,7 +332,7 @@ class HeatNetTool:
         -------
         None
         '''
-        path = Path(self.plugin_dir) / 'cities.xlsx'
+        path = Path(self.plugin_dir) / 'data/cities.xlsx'
         df = pd.read_excel(path, dtype={'schluessel': str, 'gmdschl': str})
 
         # convert string to list with floats
@@ -677,7 +677,7 @@ class HeatNetTool:
         bak_bins = [0, 1918, 1948, 1957, 1968, 1978, 1983, 1994, 2001, 9999]
         bak_labels = ['B','C','D','E','F','G','H','I','J']
         
-        excel_path = self.plugin_dir+'/building_info_18_10_2016.xlsx'
+        excel_path = self.plugin_dir+'/data/building_info_18_10_2016.xlsx'
         excel_building_info = pd.read_excel(excel_path,sheet_name='database')
 
         streets_path, streets_layer_name, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_streets)
@@ -925,7 +925,7 @@ class HeatNetTool:
         self.dlg.net_label_response.repaint()
 
         # pipe info
-        excel_file_path = Path(self.plugin_dir) / 'pipe_data.xlsx'
+        excel_file_path = Path(self.plugin_dir) / 'data/pipe_data.xlsx'
         pipe_info = pd.read_excel(excel_file_path, sheet_name='pipe_data')
 
         # Temperatures from SpinBox
@@ -1129,7 +1129,7 @@ class HeatNetTool:
         self.dlg.net_label_response.repaint()
 
         # pipe info
-        excel_file_path = Path(self.plugin_dir) / 'pipe_data.xlsx'
+        excel_file_path = Path(self.plugin_dir) / 'data/pipe_data.xlsx'
         pipe_info = pd.read_excel(excel_file_path, sheet_name='pipe_data')
         dn_list = pipe_info['DN'].to_list()
 
