@@ -926,7 +926,7 @@ class Result:
         # sum_row['Typ']=net_name
         # self.sum_list.append(sum_row)
     
-    def save_in_excel(self, col = 0, index_bool=False, sheet_option ='replace', sheet = 'Zusammenfassung'):
+    def save_in_excel(self, result_table, col = 0, index_bool=False, sheet_option ='replace', sheet = 'Zusammenfassung'):
         '''
         Saves the DataFrame to an Excel sheet.
 
@@ -951,7 +951,7 @@ class Result:
 
         # Open the Excel file in the appropriate mode and write the DataFrame to the specified sheet
         with pd.ExcelWriter(self.path, engine='openpyxl', mode=mode, **writer_args) as writer:
-            self.gdf.to_excel(writer, sheet_name=sheet, index=index_bool, startcol=col)
+            result_table.to_excel(writer, sheet_name=sheet, index=index_bool, startcol=col)
         
         # Adjust column widths
         wb = load_workbook(filename = self.path)        
@@ -968,3 +968,32 @@ class Result:
             adjusted_width = (max_length+1)
             ws.column_dimensions[column].width = adjusted_width
         wb.save(self.path)
+    
+    @staticmethod
+    def building_statistic(gdf):
+        '''
+        Computes statistics for buildings from a GeoDataFrame.
+
+        This function filters and aggregates building data to compute various statistics for each building type.
+        
+        Parameters
+        ----------
+        gdf : GeoDataFrame
+            The GeoDataFrame containing building data. Expected columns include 'type', 'NF', 'RW_spez', 'WW_spez', 'RW_WW_spez', 'age_LANUV', and 'BAK'.
+
+        Returns
+        -------
+        aggregated_stats : DataFrame
+            A DataFrame with aggregated statistics for each building type.
+        '''
+        filtered_gdf = gdf[gdf['type'].apply(lambda x: ',' not in x)]
+        aggregated_stats = filtered_gdf.groupby('type').agg(
+            NF_median=('NF', 'median'),                # Median heated area
+            RW_spez_median=('RW_spez', 'median'),      # Median specific room heat
+            WW_spez_median=('WW_spez', 'median'),      # Median specific warm water
+            RW_WW_spez_median=('RW_WW_spez','median'), # Median combined heating
+            count=('type', 'size'),                    # Building count
+            most_common_age_LANUV=('age_LANUV', lambda x: x.mode().iloc[0]),  # most common age according to LANUV
+            most_common_BAK_ALKIS=('BAK', lambda x: x.mode().iloc[0]) # most common age (Baualtersklasse) according to ALKIS parcels
+        ).reset_index()
+        return aggregated_stats

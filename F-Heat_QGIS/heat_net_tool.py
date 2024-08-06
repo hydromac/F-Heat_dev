@@ -644,7 +644,7 @@ class HeatNetTool:
         6. **Building Data Adjustments**:
         - **Heat Demand Filtering**: Filters out buildings without heat demand.
         - **Spatial Join**: Joins buildings with parcels to add building age information.
-        - **Age Class Addition**: Adds building age classes and LANUV age information.
+        - **Age Class Addition**: Adds building age classes and LANUV age and type information.
         - **Load Profile Addition**: Integrates load profiles from the Excel data.
         - **Data Cleanup**: Drops unwanted attributes and adds power information.
         - **ID Assignment**: Assigns new IDs to buildings and merges building data as needed.
@@ -703,7 +703,7 @@ class HeatNetTool:
             self.dlg.adjust_progressBar.setValue(30) # update progressBar
             buildings.add_BAK(bak_bins,bak_labels) # add building age class
             self.dlg.adjust_progressBar.setValue(40) # update progressBar
-            buildings.add_age_LANUV() # add building age by LANUV
+            buildings.add_LANUV_age_and_type() # add building age and type by LANUV
             self.dlg.adjust_progressBar.setValue(50) # update progressBar
             buildings.add_Vlh_Loadprofile(excel_building_info)
             self.dlg.adjust_progressBar.setValue(60) # update progressBar
@@ -1180,7 +1180,14 @@ class HeatNetTool:
         result.create_df_from_dataDict(net_name = os.path.splitext(os.path.basename(net_path))[0])
         
         # save result
-        result.save_in_excel()
+        result.save_in_excel(result_table = result.gdf)
+
+        # update progressBar
+        self.dlg.net_progressBar.setValue(15)
+
+        ### building statistic ###
+        statistic = result.building_statistic(buildings.gdf)
+        result.save_in_excel(result_table = statistic, sheet = 'Statistik')
     
         # update progressBar
         self.dlg.net_progressBar.setValue(20)
@@ -1207,7 +1214,7 @@ class HeatNetTool:
             averegae_temp_profile = temp.tempdata(temp.url, station_id, year, start_date, end_date, n)
 
         # update progressBar
-        self.dlg.net_progressBar.setValue(30)
+        self.dlg.net_progressBar.setValue(25)
 
         ## load curve
 
@@ -1232,15 +1239,21 @@ class HeatNetTool:
         # excel class
         load_profile = LoadProfile(result.gdf, result_path)
 
+        # update progressBar
+        self.dlg.net_progressBar.setValue(30)
+
         for row in load_profile.net_result.itertuples(index=False):
             building_type = row.Lastprofil
-            building_class = 3 # Baualtersklasse NRW:3 Quelle:Praxisinformation P 2006 / 8 Gastransport / Betriebswirtschaft, BGW, 2006, Seite 43 Tabelle 2 und 3 -->"C:\Users\Lars_Goray\Desktop\Wärmenetzplanung\Literatur\WICHTIG_3.5_standardlastprofile_bgw_information_lastprofile.pdf"
+            building_class = 3 # Baualtersklasse NRW:3 Quelle:Praxisinformation P 2006 / 8 Gastransport / Betriebswirtschaft, BGW, 2006, Seite 43 Tabelle 2 und 3
             if pd.isna(building_type):
                 break
             elif building_type.lower() not in ('efh', 'mfh'):
                 building_class = 0
             hd = row[2]
             demand[building_type] = energy_profile.create_heat_demand_profile(building_type, building_class, 0, 1, hd)
+
+        # update progressBar
+        self.dlg.net_progressBar.setValue(35)
 
         # add sum column for all buildings
         demand_with_sum_buildings = load_profile.add_sum_buildings(demand)
@@ -1251,14 +1264,23 @@ class HeatNetTool:
         # add sum buildings+loss
         demand_with_sum = load_profile.add_sum(demand_with_loss)
 
+        # update progressBar
+        self.dlg.net_progressBar.setValue(40)
+
         # plot and save fig
         energy_profile.plot_bar_chart(demand_with_sum, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil.png')
 
         # order
         sorted_demand = demand_with_sum.sort_values(by='Gesamtsumme', ascending=False)
 
+        # update progressBar
+        self.dlg.net_progressBar.setValue(60)
+
         # plot and save fig
         energy_profile.plot_bar_chart(sorted_demand, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil_geordnet.png')
+
+        # update progressBar
+        self.dlg.net_progressBar.setValue(80)
 
         # save demand profile in excel
         load_profile.safe_in_excel(demand_with_sum, index_bool=True)

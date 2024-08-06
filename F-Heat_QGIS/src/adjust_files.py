@@ -210,7 +210,7 @@ class Buildings_adj():
         If full load hours (Vlh) are zero, it uses a default value of 1600.
         '''
         buildings = self.gdf
-        buildings['power'] = buildings[self.heat_att] / buildings['Vlh'].where(buildings['Vlh'] != 0, 1600) # Default to 1600 if Vlh is 0
+        buildings['power_th'] = buildings[self.heat_att] / buildings['Vlh'].where(buildings['Vlh'] != 0, 1600) # Default to 1600 if Vlh is 0
         self.gdf = buildings
     
     @staticmethod
@@ -269,35 +269,11 @@ class Buildings_adj():
         self.gdf['BAK'] = self.gdf['BAK'].astype(str)
         self.gdf.drop(columns=['jahr'], inplace = True)
 
-    def add_age_LANUV(self):
+    def add_LANUV_age_and_type(self):
         ''' 
-        Adds building age information based on the building type attribute.
-
-        This method extracts the building age from the 'GEBAEUDETY' attribute and adds it as a new column.
+        This method extracts the building age and type from the 'GEBAEUDETY' attribute and adds it as two new columns.
         '''
-        def extract_age(building_type):
-            '''
-            Extracts the age from the building type attribute.
-
-            This helper function extracts the age from the 'GEBAEUDETY' attribute using a regular expression.
-
-            Parameters
-            ----------
-            building_type : str
-                The building type attribute value.
-
-            Returns
-            -------
-            int or None
-                The extracted age or None if no age is found.
-            '''
-            match = re.search(r'_(\d+)$', building_type)
-            if match:
-                return int(match.group(1))
-            else:
-                return None
-        # Add the 'Alter_LANUV' column
-        self.gdf['Alter_LANUV'] = self.gdf['GEBAEUDETY'].apply(extract_age)
+        self.gdf[['type', 'age_LANUV']] = self.gdf['GEBAEUDETY'].str.split('_', expand=True)
     
     def merge_buildings(self):
         '''
@@ -306,6 +282,7 @@ class Buildings_adj():
         This method dissolves the building geometries based on 'Flurstueck', 'citygml_fu', and 'Fortschrei'
         attributes and performs custom aggregations on the attributes.
         '''
+
         # Aggregation functions
         def custom_agg_mix_str(s):
             '''
@@ -390,23 +367,41 @@ class Buildings_adj():
                 sorted_list = sorted(max_list)
                 return ', '.join(map(str, sorted_list))
             
+        def weighted_average(s, weights):
+            '''
+            Calculates the weighted average.
+
+            Parameters
+            ----------
+            s : Series
+                Series of values (e.g., RW_spez).
+            weights : Series
+                Series of weights (e.g., NF).
+
+            Returns
+            -------
+            float
+                The weighted average.
+            '''
+            return (s * weights).sum() / weights.sum()
+           
         grouped_gdf = self.gdf.dissolve(by=['Flurstueck', 'citygml_fu', 'Fortschrei'], as_index=False, aggfunc={
             'Fest_ID': 'first', 
-            'Nutzung': 'first',  
-            'RW': 'sum', 
+            'Nutzung': 'first', 
+            'NF': 'sum', 
+            'RW_spez': lambda x: weighted_average(x, self.gdf.loc[x.index, 'NF']),
+            'RW': 'sum',
+            'WW_spez': lambda x: weighted_average(x, self.gdf.loc[x.index, 'NF']),
             'WW': 'sum',
+            'RW_WW_spez': lambda x: weighted_average(x, self.gdf.loc[x.index, 'NF']),
             'RW_WW': 'sum',
-            'Block_ID': custom_agg_mix_numeric,
-            'Flur_ID': custom_agg_mix_numeric,
-            'Gemarkung_': 'first',
-            'AGS': 'first',
-            'Kreis': 'first',
             'validFrom' : 'first',
             'BAK': mode_or_string,
-            'Alter_LANUV': mode_or_string,
+            'age_LANUV': mode_or_string,
+            'type': mode_or_string,
             'Lastprofil': 'first',
             'Vlh': 'first',
-            'power': 'sum',
+            'power_th': 'sum',
             'new_ID': 'first'})
         self.gdf = grouped_gdf
 
