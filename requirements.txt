@@ -1,0 +1,8 @@
+geopandas
+OWSLib
+pandas
+numpy
+networkx
+matplotlib
+openpyxl
+demandlib
