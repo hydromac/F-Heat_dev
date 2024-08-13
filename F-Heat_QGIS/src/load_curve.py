@@ -170,15 +170,19 @@ class Temperature:
                 dataframes.append(filtered_data)
         average_data = pd.concat(dataframes).groupby(level=0).mean().reset_index(drop=True)
         return average_data
-    
-class EnergyDemandProfile:
+
+class LoadProfile:
     '''
-    A class to model energy demand profiles for heating and electricity.
+     A class for managing and analyzing load profiles, including generating, sorting, and saving energy demand profiles.
 
     Attributes
     ----------
+    net_result : object
+        The result object containing network data.
+    path : str
+        The path to the Excel file where results are stored.
     year : int
-        The year for which the demand profiles are calculated.
+        The year for which the demand profiles are generated.
     temperature : pd.Series
         The temperature data series for the year.
     holidays : list
@@ -190,37 +194,55 @@ class EnergyDemandProfile:
     -------
     create_heat_demand_profile(building_type, building_class, wind_class, ww_incl, annual_heat_demand):
         Creates a heating demand profile based on building characteristics and annual heat demand.
-    create_power_demand_profile(annual_electricity_demand_per_sector):
-        Creates a power demand profile based on annual electricity demand per sector.
-    plot_bar_chart(dataframe, column_names, figsize=(18, 4), colors=['blue', 'orange'], filename='../Lastprofil.png'):
-        Plots a bar chart of specified columns in a dataframe.
     set_up_df(year, resolution, freq):
         Creates a DataFrame for collecting generated profiles with the specified resolution and frequency.
+    sort_columns_by_sum(df):
+        Sorts the columns of a dataframe in ascending order based on their sum and returns the sorted dataframe.
+    add_loss(demand_df, df, resolution=8760):
+        Adds a loss column to the demand dataframe based on the maximum annual loss in another dataframe.
+    add_sum_buildings(df):
+        Adds a column for the sum of all building types in a dataframe and returns the modified dataframe.
+    add_sum(df):
+        Adds a total sum column that includes the sum of all building types and losses.
+    plot_bar_chart(dataframe, column_names, figsize=(18, 4), colors=['blue', 'orange'], filename='../Lastprofil.png'):
+        Plots a bar chart of specified columns in a dataframe.
+    save_in_excel(df, col=0, index_bool=False, sheet_option='replace', sheet='Lastprofil'):
+        Saves the dataframe to the specified Excel file and sheet.
+    embed_image_in_excel(row, col, sheet='Lastprofil', image_filename='../Lastprofil.png'):
+        Embeds an image into the specified Excel sheet at a given position.
+    open_excel_file():
+        Opens the Excel file using the default application.
     '''
 
-    def __init__(self, year, temperature_data, holidays):
+    def __init__(self, net_result, excel_path, year, temperature_data, holidays):
         '''
-        Initializes the EnergyDemandProfile class with the year, temperature data, and holidays.
+        Initializes the LoadProfile class with the network result object, path to the Excel file, year, temperature data, and holidays.
 
         Parameters
         ----------
+        net_result : object
+            The result object containing network data.
+        excel_path : str
+            The path to the Excel file where results are stored.
         year : int
-            The year for which the demand profiles are calculated.
+            The year for which the demand profiles are generated.
         temperature_data : pd.Series
             The temperature data series for the year.
         holidays : list
             List of holidays in the year.
         '''
+        self.net_result = net_result
+        self.path = excel_path
         self.year = year
         self.temperature = temperature_data
         self.holidays = holidays
         self.demand_time_series = pd.date_range(start=datetime.datetime(year, 1, 1, 0),
                                 end=datetime.datetime(year, 12, 31, 23),
                                 freq='H')
-
+    
     def create_heat_demand_profile(self, building_type, building_class, wind_class, ww_incl, annual_heat_demand):
         '''
-         Creates a heating demand profile based on building characteristics and annual heat demand.
+        Creates a heating demand profile based on building characteristics and annual heat demand.
 
         Parameters
         ----------
@@ -247,46 +269,8 @@ class EnergyDemandProfile:
                                       name=building_type).get_bdew_profile()
         return heat_demand
 
-    # def create_power_demand_profile(self, annual_electricity_demand_per_sector):
-    #     elec_slp = bdew.ElecSlp(self.year, holidays=self.holidays)
-    #     # Further logic
-    #     elec_demand = elec_slp.get_profile(annual_electricity_demand_per_sector)
-    #     return elec_demand
-
-    def plot_bar_chart(self, dataframe, column_names, figsize=(18, 4), colors=['blue', 'orange'], filename='../Lastprofil.png'):
-        '''
-        Plots a bar chart of specified columns in a dataframe.
-
-        Parameters
-        ----------
-        dataframe : pd.DataFrame
-            The data frame containing the data to plot.
-        column_names : list
-            List of column names to plot.
-        figsize : tuple, optional
-            Size of the figure (default is (18, 4)).
-        colors : list, optional
-            List of colors for the bars (default is ['blue', 'orange']).
-        filename : str, optional
-            The filename to save the plot (default is '../Lastprofil.png').
-        '''
-        plt.figure()  # new figure
-        for i in range(len(column_names)):
-            plt.bar(range(len(dataframe)), dataframe[column_names[i]], color=colors[i], label=column_names[i], width =1)
-            
-        # Plot size
-        fig = plt.gcf()
-        fig.set_size_inches(figsize)
-
-        plt.xlabel('Zeit [h]')
-        plt.ylabel('Wärmebedarf und Verlust [MW]')
-        plt.title('Wärmebedarf und Verlust pro Stunde im Jahr')
-        plt.legend()
-        plt.savefig(filename, bbox_inches='tight')
-        #plt.show()
-        plt.close(fig)
-
-    def set_up_df(self,year,resolution,freq):
+    @staticmethod
+    def set_up_df(year,resolution,freq):
         '''
         Creates a DataFrame for collecting generated profiles with the specified resolution and frequency.
 
@@ -307,49 +291,6 @@ class EnergyDemandProfile:
         demand = pd.DataFrame(
             index=pd.date_range(datetime.datetime(year, 1, 1, 0), periods=resolution, freq=freq))
         return demand
-    
-class LoadProfile:
-    '''
-    Class to manage methods for the Excel file, where the net report is stored.
-
-    Attributes
-    ----------
-    net_result : object
-        The result object containing network data.
-    path : str
-        The path to the Excel file where results are stored.
-
-    Methods
-    -------
-    sort_columns_by_sum(df):
-        Sorts the columns of a dataframe in ascending order based on their sum and returns the sorted dataframe.
-    add_loss(demand_df, df, resolution=8760):
-        Adds a loss column to the demand dataframe based on the maximum annual loss in another dataframe.
-    add_sum_buildings(df):
-        Adds a column for the sum of all building types in a dataframe and returns the modified dataframe.
-    add_sum(df):
-        Adds a total sum column that includes the sum of all building types and losses.
-    save_in_excel(df, col=0, index_bool=False, sheet_option='replace', sheet='Lastprofil'):
-        Saves the dataframe to the specified Excel file and sheet.
-    embed_image_in_excel(row, col, sheet='Lastprofil', image_filename='../Lastprofil.png'):
-        Embeds an image into the specified Excel sheet at a given position.
-    open_excel_file():
-        Opens the Excel file using the default application.
-    '''
-
-    def __init__(self, net_result, excel_path):
-        '''
-        Initializes the LoadProfile class with the network result object and the path to the Excel file.
-
-        Parameters
-        ----------
-        net_result : object
-            The result object containing network data.
-        excel_path : str
-            The path to the Excel file where results are stored.
-        '''
-        self.net_result = net_result
-        self.path = excel_path
 
     @staticmethod
     def sort_columns_by_sum(df):
@@ -414,6 +355,20 @@ class LoadProfile:
         return df_with_sum
     
     @staticmethod
+    def add_glf(df,glf):
+        '''
+        '''
+        df_glf = df.copy()
+
+        # Calculate the average load
+        avg_load = df_glf['Summe aller Gebäudetypen'].mean()
+
+        # Apply the formula to adjust the load profile with the coincidence factor
+        df_glf['Summe aller Gebäudetypen mit GLF'] = avg_load + (df_glf['Summe aller Gebäudetypen'] - avg_load) * glf
+
+        return df_glf
+    
+    @staticmethod
     def add_sum(df):
         '''
         Adds a total sum column that includes the sum of all building types and losses.
@@ -429,8 +384,41 @@ class LoadProfile:
             The modified dataframe with the total sum column.
         '''
         df_sum = df.copy()
-        df_sum['Gesamtsumme'] = df_sum['Summe aller Gebäudetypen']+df_sum['Verlust']
+        df_sum['Gesamtsumme'] = df_sum['Summe aller Gebäudetypen mit GLF']+df_sum['Verlust']
         return df_sum
+    
+    @staticmethod
+    def plot_bar_chart(dataframe, column_names, figsize=(18, 4), colors=['blue', 'orange'], filename='../Lastprofil.png'):
+        '''
+        Plots a bar chart of specified columns in a dataframe.
+
+        Parameters
+        ----------
+        dataframe : pd.DataFrame
+            The data frame containing the data to plot.
+        column_names : list
+            List of column names to plot.
+        figsize : tuple, optional
+            Size of the figure (default is (18, 4)).
+        colors : list, optional
+            List of colors for the bars (default is ['blue', 'orange']).
+        filename : str, optional
+            The filename to save the plot (default is '../Lastprofil.png').
+        '''
+        plt.figure()  # new figure
+        for i in range(len(column_names)):
+            plt.bar(range(len(dataframe)), dataframe[column_names[i]], color=colors[i], label=column_names[i], width =1)
+            
+        # Plot size
+        fig = plt.gcf()
+        fig.set_size_inches(figsize)
+
+        plt.xlabel('Zeit [h]')
+        plt.ylabel('Wärmebedarf und Verlust [MW]')
+        plt.title('Wärmebedarf und Verlust pro Stunde im Jahr')
+        plt.legend()
+        plt.savefig(filename, bbox_inches='tight')
+        plt.close(fig)
 
     def safe_in_excel(self, df, col = 0, index_bool=False, sheet_option ='replace', sheet = 'Lastprofil'):
         '''

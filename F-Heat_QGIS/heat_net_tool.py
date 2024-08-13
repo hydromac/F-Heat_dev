@@ -44,7 +44,7 @@ from .src.download_files import file_list_from_URL, search_filename, read_file_f
 from .src.adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
 from .src.status_analysis import WLD, Polygons
 from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
-from .src.load_curve import Temperature, EnergyDemandProfile, LoadProfile
+from .src.load_curve import Temperature, LoadProfile
 
 class HeatNetTool:
     """QGIS Plugin Implementation."""
@@ -1230,14 +1230,11 @@ class HeatNetTool:
         # temperature
         temperature_data = averegae_temp_profile['TT_TU']
 
-        # create energy profile
-        energy_profile = EnergyDemandProfile(year, temperature_data, holidays)
-
+        # load_profile class
+        load_profile = LoadProfile(result.gdf, result_path, year, temperature_data, holidays)
+        
         # dataframe for collecting generated profiles
-        demand = energy_profile.set_up_df(year, resolution, freq)
-
-        # excel class
-        load_profile = LoadProfile(result.gdf, result_path)
+        demand = load_profile.set_up_df(year, resolution, freq)
 
         # update progressBar
         self.dlg.net_progressBar.setValue(30)
@@ -1250,7 +1247,7 @@ class HeatNetTool:
             elif building_type.lower() not in ('efh', 'mfh'):
                 building_class = 0
             hd = row[2]
-            demand[building_type] = energy_profile.create_heat_demand_profile(building_type, building_class, 0, 1, hd)
+            demand[building_type] = load_profile.create_heat_demand_profile(building_type, building_class, 0, 1, hd)
 
         # update progressBar
         self.dlg.net_progressBar.setValue(35)
@@ -1258,8 +1255,13 @@ class HeatNetTool:
         # add sum column for all buildings
         demand_with_sum_buildings = load_profile.add_sum_buildings(demand)
 
+        glf = result.data_dict['GLF'][0] # Gleichzeitigkeitsfaktor/coincident factor
+
+        # add Gleichzeitigkeitsfaktor/coincident factor to demand
+        demand_glf = load_profile.add_glf(demand_with_sum_buildings,glf)
+
         # add loss
-        demand_with_loss = load_profile.add_loss(demand_with_sum_buildings, load_profile.net_result, resolution)
+        demand_with_loss = load_profile.add_loss(demand_glf, load_profile.net_result, resolution)
         
         # add sum buildings+loss
         demand_with_sum = load_profile.add_sum(demand_with_loss)
@@ -1268,7 +1270,7 @@ class HeatNetTool:
         self.dlg.net_progressBar.setValue(40)
 
         # plot and save fig
-        energy_profile.plot_bar_chart(demand_with_sum, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil.png')
+        load_profile.plot_bar_chart(demand_with_sum, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil.png')
 
         # order
         sorted_demand = demand_with_sum.sort_values(by='Gesamtsumme', ascending=False)
@@ -1277,7 +1279,7 @@ class HeatNetTool:
         self.dlg.net_progressBar.setValue(60)
 
         # plot and save fig
-        energy_profile.plot_bar_chart(sorted_demand, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil_geordnet.png')
+        load_profile.plot_bar_chart(sorted_demand, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil_geordnet.png')
 
         # update progressBar
         self.dlg.net_progressBar.setValue(80)
