@@ -677,15 +677,16 @@ class HeatNetTool:
         bak_bins = [0, 1918, 1948, 1957, 1968, 1978, 1983, 1994, 2001, 9999]
         bak_labels = ['B','C','D','E','F','G','H','I','J']
         
-        excel_path = self.plugin_dir+'/data/building_info_18_10_2016.xlsx'
-        excel_building_info = pd.read_excel(excel_path,sheet_name='database')
+        excel_path = self.plugin_dir+'/data/building_info.xlsx'
+        excel_building_info = pd.read_excel(excel_path, sheet_name='database')
+        excel_building_demand = pd.read_excel(excel_path, sheet_name='Grunddaten_Gebaeude', nrows=13, usecols='A:D')
 
         streets_path, streets_layer_name, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_streets)
         buildings_path, buildings_layer_name, buildings_layer_obj = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_buildings)
         parcels_path, parcels_layer_name, parcels_layer_obj  = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_parcels)
         
         # update progressBar
-        self.dlg.adjust_progressBar.setValue(10)
+        self.dlg.adjust_progressBar.setValue(5)
 
         parcels = Parcels_adj(parcels_path, self.epsg_code)
         buildings = Buildings_adj(buildings_path, heat_att, self.epsg_code)
@@ -698,22 +699,25 @@ class HeatNetTool:
             self.dlg.adjust_label_feedback.setText('Buildings already adjusted!')
         else:
             buildings.gdf = buildings.gdf[buildings.gdf[heat_att]>0].reset_index(drop=True) # only buildings with heat demand
-            self.dlg.adjust_progressBar.setValue(20) # update progressBar
-            buildings.gdf = spatial_join(buildings.gdf.copy(), parcels.gdf, ['validFrom']) # building age from parcels
-            self.dlg.adjust_progressBar.setValue(30) # update progressBar
-            buildings.add_BAK(bak_bins,bak_labels) # add building age class
-            self.dlg.adjust_progressBar.setValue(40) # update progressBar
+            self.dlg.adjust_progressBar.setValue(10) # update progressBar
             buildings.add_LANUV_age_and_type() # add building age and type by LANUV
+            self.dlg.adjust_progressBar.setValue(20) # update progressBar
+            buildings.merge_buildings()
+            buildings.gdf['new_ID'] = buildings.gdf.index.astype('int32')
+            self.dlg.adjust_progressBar.setValue(30) # update progressBar
+            buildings.gdf = spatial_join(buildings.gdf.copy(), parcels.gdf, ['validFrom']) # building age from parcels
+            self.dlg.adjust_progressBar.setValue(40) # update progressBar
+            buildings.add_BAK(bak_bins,bak_labels) # add building age class
             self.dlg.adjust_progressBar.setValue(50) # update progressBar
             buildings.add_Vlh_Loadprofile(excel_building_info)
             self.dlg.adjust_progressBar.setValue(60) # update progressBar
             buildings.drop_unwanted()
-            buildings.add_power()
             self.dlg.adjust_progressBar.setValue(70) # update progressBar
-            buildings.gdf['new_ID'] = buildings.gdf.index.astype('int32')
-            buildings.merge_buildings()
+            buildings.add_power()
+            buildings.add_custom_heat_demand(excel_building_demand)
 
             self.dlg.adjust_progressBar.setValue(80) # update progressBar
+
             streets.round_streets()
             self.dlg.adjust_progressBar.setValue(90) # update progressBar
             streets.add_bool_column() # possible routes
