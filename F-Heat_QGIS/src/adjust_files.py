@@ -188,6 +188,14 @@ class Buildings_adj():
             buildings.drop(columns=['Funktion'], inplace=True)
         except:
             buildings.drop(columns=['Funktion_y'], inplace=True)
+
+        # EFH and MFH share the same ALKIS-function 1010
+        buildings['Lastprofil'] = np.where(
+            (buildings['Lastprofil'] == 'EFH') & (buildings['type'] != 'EFH'),
+            'MFH',
+            buildings['Lastprofil']
+        )
+
         self.gdf = buildings
 
     def drop_unwanted(self):
@@ -274,7 +282,7 @@ class Buildings_adj():
         This method extracts the building age and type from the 'GEBAEUDETY' attribute and adds it as two new columns.
         '''
         self.gdf[['type', 'age_LANUV']] = self.gdf['GEBAEUDETY'].str.split('_', expand=True)
-    
+
     def merge_buildings(self):
         '''
         Merges building geometries and attributes, performing custom aggregations.
@@ -395,15 +403,67 @@ class Buildings_adj():
             'WW': 'sum',
             'RW_WW_spez': lambda x: weighted_average(x, self.gdf.loc[x.index, 'NF']),
             'RW_WW': 'sum',
-            'validFrom' : 'first',
-            'BAK': mode_or_string,
+            #'validFrom' : 'first',
+            #'BAK': mode_or_string,
             'age_LANUV': mode_or_string,
-            'type': mode_or_string,
-            'Lastprofil': 'first',
-            'Vlh': 'first',
-            'power_th': 'sum',
-            'new_ID': 'first'})
+            'type': mode_or_string
+            #'Lastprofil': 'first',
+            #'Vlh': 'first',
+            #'power_th': 'sum',
+            #'new_ID': 'first'
+            })
         self.gdf = grouped_gdf
+    
+    def add_custom_heat_demand(self, building_data):
+        '''
+        Adds custom heat demand data to the existing GeoDataFrame based on building characteristics.
+
+        This method merges the existing GeoDataFrame with the provided building data to assign specific heat demand values
+        based on the building type (e.g., MFH or EFH). The specific heat demand values are used to calculate the total heat demand
+        for each building. 
+
+        Parameters
+        ----------
+        building_data : pd.DataFrame
+            A DataFrame containing building-specific heat demand data. It must include the following columns:
+            - 'Baualtersklasse': Building age class.
+            - 'Waerme_MFH kWh/m²·a': Specific heat demand for multi-family houses (MFH) in kWh/m²·a.
+            - 'Waerme_EFH kWh/m²·a': Specific heat demand for single-family houses (EFH) in kWh/m²·a.
+
+        Updates
+        -------
+        self.gdf : pd.DataFrame
+            The GeoDataFrame is updated with new columns:
+            - 'Spez_Waermebedarf': Specific heat demand based on the building type.
+            - 'Waermebedarf': Calculated heat demand based on the specific heat demand and the building's net floor area (NF).
+
+        Notes
+        -----
+        The method assumes that 'Lastprofil' in the GeoDataFrame specifies the building type as either 'MFH' or 'EFH'.
+        Other types are assigned NaN or handled as specified in the implementation.
+        '''
+        buildings = self.gdf
+        merged_df = buildings.merge(
+            building_data[['Baualtersklasse', 'Waerme_MFH kWh/m²·a', 'Waerme_EFH kWh/m²·a']],
+            left_on='BAK',
+            right_on='Baualtersklasse',
+            how='left'
+        )
+
+        # Conditional assignment of specific heat demands
+        merged_df['Spez_Waermebedarf'] = np.where(
+            merged_df['Lastprofil'] == 'MFH',
+            merged_df['Waerme_MFH kWh/m²·a'],
+            np.where(
+                merged_df['Lastprofil'] == 'EFH',
+                merged_df['Waerme_EFH kWh/m²·a'],
+                np.nan  # other logic for other cases
+            )
+        )
+        merged_df.drop(columns=['Baualtersklasse', 'Waerme_MFH kWh/m²·a', 'Waerme_EFH kWh/m²·a'], inplace=True)
+        merged_df['Waermebedarf'] = merged_df['NF'] * merged_df['Spez_Waermebedarf']
+        self.gdf = merged_df
+
 
 class Parcels_adj():
     '''
