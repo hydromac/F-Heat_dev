@@ -75,7 +75,7 @@ def calculate_volumeflow(kW_GLF, htemp, ltemp):
     volumeflow = kW_GLF / (density * cp * (int(htemp) - int(ltemp))) # liter/s
     return volumeflow
 
-def calculate_diameter_velocity_loss(volumeflow, htemp, ltemp, length, pipe_info):
+def calculate_diameter_velocity_loss(volumeflow, htemp, ltemp, length, pipe_info, edge_type):
     '''
     Calculate the diameter, velocity, and loss of pipelines.
 
@@ -91,7 +91,9 @@ def calculate_diameter_velocity_loss(volumeflow, htemp, ltemp, length, pipe_info
         Length of the pipeline.
     pipe_info : DataFrame
         DataFrame containing pipeline information with columns 'DN', 'di', 'U-Value', 'v_max'.
-
+    edge_type : string
+        String containing the type of the edge e.g. 'Hausanschluss'.
+        
     Returns
     -------
     tuple
@@ -100,29 +102,33 @@ def calculate_diameter_velocity_loss(volumeflow, htemp, ltemp, length, pipe_info
         - velocity (float): Velocity in the pipeline.
         - loss (float): Heat loss.
     '''
-    DN_list = pipe_info['DN']   
-    di_list = pipe_info['di']   
-    U_list = pipe_info['U-Value'] 
-    v_list = pipe_info['v_max'] 
     mtemp = (htemp+ltemp)/2
     K = mtemp - 10  # Outside Temp. = 10°C for underground installation 
 
-    vtemp = []
-    for i,d_i in enumerate(di_list):
-        r = d_i/2
-        v = volumeflow * 1000 / (np.pi *  pow(r,2)) # dm^3/mm^2 --> Factor 1000
-        vtemp.append(v)
+    # non-house connections should have at least dn = 32(=DN[2])
+    if edge_type == 'Hausanschluss':
+        start_index = 0
+    else:
+        start_index = 2
 
-        if v <= v_list[i]:
-            break
-    else:  
-        v = min(vtemp, key=lambda x: abs(x-1))
-        i = vtemp.index(v)
+    # search index of suitable max. Volume Flow
+    idx = pipe_info['max_volumeFlow'][start_index:].searchsorted(volumeflow, side='right') + start_index
 
-    loss = 8760 * 2 * (U_list[i] * K * length) / 1000 # 8760 h/a, 2* --> supply and return
-    DN = DN_list[i] 
+    # if volumeflow is too high take last DN, which should not happen with DN = 300
+    if idx >= len(pipe_info):
+        idx = len(pipe_info) - 1
 
-    return DN, v, loss
+    # get values from pipe_info
+    d_i = pipe_info['di'].iloc[idx]
+    DN = pipe_info['DN'].iloc[idx]
+    u = pipe_info['U-Value'].iloc[idx]
+
+    # calculate velocity and loss
+    r = d_i / 2
+    velocity = volumeflow * 1000 / (np.pi * pow(r, 2))  # dm^3/mm^2 --> Factor 1000
+    
+    loss = 8760 * 2 * (u * K * length) / 1000  # 8760 h/a, 2* --> supply and return
+    return DN, velocity, loss
 
 class Streets:
     '''
@@ -395,7 +401,7 @@ class Graph:
             A GeoDataFrame containing street geometries.
         '''
         # Dictionary with attributes for the edges
-        edge_data = {'Typ': 'Straßenleitung'}  
+        edge_data = {'type': 'Straßenleitung'}  
 
         # Add nodes and edges
         for idx, row in streets.iterrows():
@@ -425,7 +431,7 @@ class Graph:
             centroid = row['centroid']
             closest_point = row['Anschlusspunkt']
             if not pd.isna(closest_point):
-                edge_data = {'Typ': 'Hausanschluss'}  # Dictionary mit dem Attribut, das die edge haben soll
+                edge_data = {'type': 'Hausanschluss'}  # Dictionary mit dem Attribut, das die edge haben soll
                 self.graph.add_edge(centroid.coords[0], (closest_point.x, closest_point.y), **edge_data)
 
     def connect_source(self, sources):
@@ -441,7 +447,7 @@ class Graph:
             source = row['geometry']
             closest_point = row['Anschlusspunkt']
             if not pd.isna(source):
-                edge_data = {'Typ': 'Quellenanschluss'}  # Dictionary mit dem Attribut, das die edge haben soll
+                edge_data = {'type': 'Quellenanschluss'}  # Dictionary mit dem Attribut, das die edge haben soll
                 self.graph.add_edge(source.coords[0], (closest_point.x, closest_point.y), **edge_data)
 
     def add_attribute_length(self):
@@ -635,11 +641,12 @@ class Net:
             n_building = data['n_building']
             power = data['power']
             length = data['length']
+            edge_type = data.get('type', None)
 
             GLF = calculate_GLF(n_building)
             power_GLF = power * GLF
             volumeflow = calculate_volumeflow(power_GLF, self.htemp, self.ltemp)
-            diameter, velocity, loss = calculate_diameter_velocity_loss(volumeflow, self.htemp, self.ltemp, length, pipe_info)
+            diameter, velocity, loss = calculate_diameter_velocity_loss(volumeflow, self.htemp, self.ltemp, length, pipe_info, edge_type)
             
             # Add attributes to the edges
             data['GLF'] = GLF
@@ -688,7 +695,7 @@ class Net:
                     u, v = path[i], path[i+1]
 
                     # Copy all edge attributes
-                    self.net.add_edge(u, v, **G.edges[u, v]) # hier steht self.net, weil das gar keine Funktion von mir ist
+                    self.net.add_edge(u, v, **G.edges[u, v])
 
                     # Update attributes
                     self.update_attribute(u, v, power, 'power')    
@@ -846,12 +853,16 @@ class Result:
                 List of all possible diameters.
             '''
             result = pd.DataFrame({'DN':dn_list}, index = dn_list)
-            result['Trassenlänge [m]'] = 0
+            result['Hausanschlusslaenge [m]'] = 0
+            result['Trassenlaenge [m]'] = 0
             result['Verlust [MWh/a]'] = 0
             df = df.dropna(subset=['DN'])
             for idx, row in df.iterrows():
                 i = int(row['DN'])
-                result.loc[i, 'Trassenlänge [m]'] += row['length']
+                if row['type'] == 'Hausanschluss':
+                    result.loc[i, 'Hausanschlusslaenge [m]'] += row['length']
+                else:
+                    result.loc[i, 'Trassenlaenge [m]'] += row['length']
                 result.loc[i, 'Verlust [MWh/a]'] += row['loss']
             return result
         
@@ -876,22 +887,21 @@ class Result:
         # Sort
         df_sorted = df.sort_values(by='Lastprofil', key=lambda x: x.map({val: i for i, val in enumerate(types)}))
 
-        # power in MW
+        # kW in MW
         gdf = net.copy()
         gdf['power_GLF']/=1000 #MW
-        # Accumulated DN values
-        kum_dn = gdf.groupby('DN').agg({'length': 'sum', 'loss': 'sum'}).reset_index()
-        kum_dn['loss']/=1000 #MW
+        gdf['loss']/=1000 #MW
 
         # Length and loss of all diameters in chronological order
-        length_loss = summarize_pipes(kum_dn,dn_list)
+        length_loss = summarize_pipes(gdf, dn_list)
 
         data_dict = {}
         data_dict['Lastprofil'] = types
         data_dict['Anzahl'] = df_sorted['count'].tolist()
-        data_dict['Wärmebedarf [MWh/a]'] = df_sorted[heat_att].tolist()
+        data_dict['Waermebedarf [MWh/a]'] = df_sorted[heat_att].tolist()
         data_dict['DN'] = dn_list
-        data_dict['Trassenlänge [m]'] = length_loss['Trassenlänge [m]'].tolist()
+        data_dict['Hausanschlusslaenge [m]'] = length_loss['Hausanschlusslaenge [m]'].tolist()
+        data_dict['Trassenlaenge [m]'] = length_loss['Trassenlaenge [m]'].tolist()
         data_dict['Verlust [MWh/a]'] = length_loss['Verlust [MWh/a]'].tolist()
         data_dict['Vorlauftemp [°C]'] = [h_temp]
         data_dict['Ruecklauftemp [°C]'] = [l_temp]
@@ -913,18 +923,14 @@ class Result:
         df = pd.DataFrame.from_dict(self.data_dict, orient='index').transpose()
 
         # Sum selected columns and write the sum in one row
-        sum_row = df[['Anzahl', 'Wärmebedarf [MWh/a]', 'Max. Leistung (inkl. GLF) [MW]', 'Trassenlänge [m]', 'Verlust [MWh/a]']].sum()
+        sum_row = df[['Anzahl', 'Waermebedarf [MWh/a]', 'Max. Leistung (inkl. GLF) [MW]', 'Hausanschlusslaenge [m]', 'Trassenlaenge [m]', 'Verlust [MWh/a]']].sum()
         sum_row['Lastprofil'] = 'Gesamt'
-        df_sum = pd.DataFrame([sum_row], columns=['Lastprofil', 'Anzahl', 'Wärmebedarf [MWh/a]', 'Max. Leistung (inkl. GLF) [MW]', 'Trassenlänge [m]', 'Verlust [MWh/a]'], index=['Summe'])
+        df_sum = pd.DataFrame([sum_row], columns=['Lastprofil', 'Anzahl', 'Waermebedarf [MWh/a]', 'Max. Leistung (inkl. GLF) [MW]', 'Hausanschlusslaenge [m]', 'Trassenlaenge [m]', 'Verlust [MWh/a]'], index=['Summe'])
 
         # Add the sum row to df
         df = pd.concat([df, df_sum])
 
         self.gdf = df
-
-        # self.result_list.append(df)
-        # sum_row['Typ']=net_name
-        # self.sum_list.append(sum_row)
     
     def save_in_excel(self, result_table, col = 0, index_bool=False, sheet_option ='replace', sheet = 'Zusammenfassung'):
         '''
