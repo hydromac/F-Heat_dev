@@ -15,7 +15,7 @@ The Heat Planning Plugin for [QGIS](https://qgis.org/) enables functions like st
 
 ## Features and Usage
 
-This tool simplifies the heat planning process by automating tasks such as:
+This tool simplifies the urban heat planning process by automating tasks such as:
 * downloading data, 
 * customising necessary files,
 * displaying suitable heat network areas and 
