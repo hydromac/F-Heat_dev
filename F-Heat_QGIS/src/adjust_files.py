@@ -113,40 +113,44 @@ class Streets_adj():
 
 class Buildings_adj():
     '''
-    A class used to represent and manipulate building geometries and attributes.
+    A class to represent and manipulate building geometries and attributes.
 
-    This class provides methods to add load profiles, drop unwanted buildings, add power attributes,
-    classify buildings into age groups, and merge building data.
+    This class provides methods for adding load profiles, filtering buildings, adding power attributes,
+    classifying buildings by age, and merging building data with custom aggregations. It also allows for 
+    the integration of custom heat demand data based on building characteristics.
 
     Attributes
     ----------
     gdf : GeoDataFrame
-        A GeoDataFrame containing the building geometries and attributes.
+        A GeoDataFrame containing building geometries and associated attributes.
     heat_att : str
-        The attribute name for heat data.
+        The attribute name for heat data in the GeoDataFrame.
 
     Methods
     -------
     add_Vlh_Loadprofile(excel_data):
-        Adds full load hours and load profiles to the buildings.
+        Adds full load hours (Vlh) and load profiles to the buildings based on external Excel data.
         
     drop_unwanted():
-        Drops buildings that do not have a load profile.
+        Removes buildings that do not have a load profile.
         
     add_power():
-        Adds a power attribute to the buildings based on heat attribute and full load hours.
+        Adds a power attribute to the buildings based on the heat attribute and full load hours.
         
     extract_year(date_str):
         Extracts the year from a date string.
         
     add_BAK(bins, labels):
-        Adds building age classification based on the provided bins and labels.
+        Classifies buildings into age groups based on the provided bins and labels.
         
-    add_age_LANUV():
-        Adds building age information based on the building type attribute.
+    add_LANUV_age_and_type():
+        Extracts building age and type from the 'GEBAEUDETY' attribute and adds them as new columns.
         
     merge_buildings():
         Merges building geometries and attributes, performing custom aggregations.
+        
+    add_custom_heat_demand(building_data):
+        Adds custom heat demand data to the existing GeoDataFrame based on building characteristics.
     '''
     def __init__(self, path, heat_att, projected_crs):
         '''
