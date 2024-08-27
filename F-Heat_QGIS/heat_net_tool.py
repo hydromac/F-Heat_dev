@@ -38,7 +38,6 @@ import geopandas as gpd
 import os
 from pathlib import Path
 from shapely import Point
-from workalendar.europe import Germany
 
 from .src.download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs
 from .src.adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
@@ -1124,6 +1123,7 @@ class HeatNetTool:
         -------
         None
         '''
+        from workalendar.europe import Germany
         # update progressBar
         self.dlg.net_progressBar.setValue(0)
 
