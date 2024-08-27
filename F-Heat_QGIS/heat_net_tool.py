@@ -220,9 +220,28 @@ class HeatNetTool:
         self.dlg.intro_label.setText('Installing modules...')
         self.dlg.intro_label.setStyleSheet("color: orange")
         self.dlg.intro_label.repaint()
+
+        # check if pip is installed
+        try:
+            # Versuch, pip zu importieren
+            import pip
+            print("pip ist bereits installiert.")
+        except ImportError:
+            print("pip ist nicht installiert. Versuche, pip zu installieren...")
+            try:
+                # Verwende ensurepip, um pip zu installieren
+                import ensurepip
+                ensurepip.bootstrap()
+                print("pip wurde erfolgreich installiert.")
+            except Exception as e:
+                print(f"Fehler beim Installieren von pip: {e}")
+
+        current_executable = sys.executable
+        python_executable = os.path.join(os.path.dirname(current_executable), 'python.exe')
+
         try:
             # Execute the "pip install" command to install all packages
-            subprocess.check_call(["pip", "install", "--upgrade"] + package_list)
+            subprocess.check_call([python_executable, "-m", "pip", "install", "--upgrade"] + package_list)
             # feedback
             self.dlg.intro_label.setText('All modules succesfully installed.')
             self.dlg.intro_label.setStyleSheet("color: green")
@@ -1152,7 +1171,6 @@ class HeatNetTool:
         -------
         None
         '''
-        from workalendar.europe import Germany
         # update progressBar
         self.dlg.net_progressBar.setValue(0)
 
