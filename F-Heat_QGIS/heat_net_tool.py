@@ -23,7 +23,7 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QFileDialog, QCompleter
+from qgis.PyQt.QtWidgets import QAction, QFileDialog, QCompleter, QMessageBox
 from qgis.core import Qgis, QgsField, QgsProject, QgsMapLayer, QgsVectorLayer, QgsMessageLog
 
 # Initialize Qt resources from file resources.py
@@ -33,17 +33,27 @@ from .heat_net_tool_dialog import HeatNetToolDialog
 
 import os.path
 import subprocess
-import pandas as pd
-import geopandas as gpd
-import os
+import sys
 from pathlib import Path
-from shapely import Point
 
-from .src.download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs
-from .src.adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
-from .src.status_analysis import WLD, Polygons
-from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
-from .src.load_curve import Temperature, LoadProfile
+try:
+    import pandas as pd
+    import geopandas as gpd
+    from shapely import Point
+    from .src.download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs
+    from .src.adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
+    from .src.status_analysis import WLD, Polygons
+    from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
+    from .src.load_curve import Temperature, LoadProfile
+except Exception as e:
+    message_box = QMessageBox()
+    message_box.setIcon(QMessageBox.Warning)
+    message_box.setWindowTitle('Import Error')
+    message_box.setText(f'Failed to import a required module: {str(e)}')
+    message_box.setInformativeText('Please install all required Python packages by pressing "Install Packages" in the Introduction part of the F|Heat plugin.')
+    message_box.exec_()
+
+
 
 class HeatNetTool:
     """QGIS Plugin Implementation."""
@@ -206,13 +216,32 @@ class HeatNetTool:
         -------
         None
         '''
-        for package in package_list:
-            try:
-                # Execute the "pip install" command to install the package
-                subprocess.check_call(["pip", "install", "--upgrade", package])
-                print(f"{package} was successfully installed.")
-            except subprocess.CalledProcessError:
-                print(f"Error installing {package}.")
+        # feedback
+        self.dlg.intro_label.setText('Installing modules...')
+        self.dlg.intro_label.setStyleSheet("color: orange")
+        self.dlg.intro_label.repaint()
+        try:
+            # Execute the "pip install" command to install all packages
+            subprocess.check_call(["pip", "install", "--upgrade"] + package_list)
+            # feedback
+            self.dlg.intro_label.setText('All modules succesfully installed.')
+            self.dlg.intro_label.setStyleSheet("color: green")
+            self.dlg.intro_label.repaint()
+        except subprocess.CalledProcessError as e:
+            # feedback
+            self.dlg.intro_label.setText(f"Error installing packages: {e}")
+            self.dlg.intro_label.setStyleSheet("color: red")
+            self.dlg.intro_label.repaint()
+
+        # Import all packages
+        import pandas as pd
+        import geopandas as gpd
+        from shapely import Point
+        from .src.download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs
+        from .src.adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
+        from .src.status_analysis import WLD, Polygons
+        from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
+        from .src.load_curve import Temperature, LoadProfile
 
     def select_output_file(self, dir, lineEdit, filetype):
         '''
@@ -1318,7 +1347,7 @@ class HeatNetTool:
 
             # install python packages
 
-            package_list = ['openpyxl','networkx','geopandas','fiona', 'workalendar', 'demandlib']
+            package_list = ['Pandas', 'numpy', 'openpyxl','networkx','geopandas','fiona', 'workalendar', 'matplotlib', 'demandlib', 'owslib']
             self.dlg.intro_pushButton_load_packages.clicked.connect(lambda: self.install_package(package_list))
             
             # Project path
