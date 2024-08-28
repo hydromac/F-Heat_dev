@@ -45,15 +45,9 @@ try:
     from .src.status_analysis import WLD, Polygons
     from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
     from .src.load_curve import Temperature, LoadProfile
-except Exception as e:
-    message_box = QMessageBox()
-    message_box.setIcon(QMessageBox.Warning)
-    message_box.setWindowTitle('Import Error')
-    message_box.setText(f'Failed to import a required module: {str(e)}')
-    message_box.setInformativeText('Please install all required Python packages by pressing "Install Packages" in the Introduction part of the F|Heat plugin.')
-    message_box.exec_()
-
-
+    from workalendar.europe import Germany
+except:
+    pass
 
 class HeatNetTool:
     """QGIS Plugin Implementation."""
@@ -261,6 +255,7 @@ class HeatNetTool:
         from .src.status_analysis import WLD, Polygons
         from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
         from .src.load_curve import Temperature, LoadProfile
+        from workalendar.europe import Germany
 
     def select_output_file(self, dir, lineEdit, filetype):
         '''
@@ -875,7 +870,8 @@ class HeatNetTool:
         self.dlg.status_progressBar.setValue(50) # update progressBar
         wld.add_WLD(heat_att=heat_attribute)
         self.dlg.status_progressBar.setValue(60) # update progressBar
-        wld.streets.to_file(streets_path, crs=self.epsg_code)
+        wld.streets = wld.streets.to_crs(self.epsg_code)
+        wld.streets.to_file(streets_path)
         self.add_shapefile_to_project(streets_path, style = 'hld' )
         
 
@@ -887,7 +883,7 @@ class HeatNetTool:
         self.dlg.status_progressBar.setValue(80) # update progressBar
         polygons.add_attributes(heat_attribute, power_attribute)
         self.dlg.status_progressBar.setValue(90) # update progressBar
-        polygons.polygons.to_file(polygon_path, crs=self.epsg_code)
+        polygons.polygons.to_file(polygon_path, crs=self.epsg_code, engine = 'fiona')
         self.add_shapefile_to_project(polygon_path, style = 'polygons')
         self.dlg.status_progressBar.setValue(100) # update progressBar
 
@@ -1362,6 +1358,25 @@ class HeatNetTool:
         if self.first_start == True:
             self.first_start = False
             self.dlg = HeatNetToolDialog()
+
+            # check modules
+            try:
+                import pandas as pd
+                import geopandas as gpd
+                from shapely import Point
+                from .src.download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs
+                from .src.adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
+                from .src.status_analysis import WLD, Polygons
+                from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
+                from .src.load_curve import Temperature, LoadProfile
+                from workalendar.europe import Germany
+            except Exception as e:
+                message_box = QMessageBox()
+                message_box.setIcon(QMessageBox.Warning)
+                message_box.setWindowTitle('Import Error')
+                message_box.setText(f'Failed to import a required module: {str(e)}')
+                message_box.setInformativeText('Please install all required Python packages by pressing "Install Packages" in the Introduction part of the F|Heat plugin.')
+                message_box.exec_()
 
             # install python packages
 
