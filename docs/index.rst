@@ -3,22 +3,110 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to DHNG`s documentation!
-=======================================================
+F|Heat Documentation
+====================
 
 .. Add your content using ``reStructuredText`` syntax. See the
 .. `reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
 .. documentation for details.
 
-The District Heating Network Generator (DHNG) is used for fast generation of a district heating network for a chosen area of interest.
-This tool is assigned to the FHEAT toolbox.
+What is the Purpose of F|Heat?
+------------------------------
 
+F|Heat is a software ecosystem for planning a sector-coupled decarbonized energy system in municipalities and small and medium-sized communities.
+
+Structure of the Documentation
+------------------------------
+This documentation consists of the following sections:
+
+General Information
+^^^^^^^^^^^^^^^^^^^
+* :doc:`introduction`
+* :doc:`access_usage`
+* :doc:`installation`
+   
 .. toctree::
-   :maxdepth: 2
-   :caption: Table of Contents:
+   :maxdepth: 3
+   :hidden:
+   :caption: General Information
 
    introduction
+   access_usage
    installation
-   usage
-   sourcecode_documentation
 
+F|Heat Application
+^^^^^^^^^^^^^^^^^^
+
+* :doc:`fheatai_overview`
+* :doc:`methodology`
+* :doc:`fheatai_map`
+* :doc:`fheatai_net`
+* :doc:`fheatai_tec`
+* :doc:`fheatai_ai`
+
+.. toctree::
+   :maxdepth: 3
+   :hidden:
+   :caption: F|Heat
+
+   fheatai_overview
+   methodology
+   fheatai_map
+   fheatai_net
+   fheatai_tec
+   fheatai_ai
+
+Sourcecode Documentation and API Reference
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* :doc:`api_documentation`
+
+.. toctree::
+   :maxdepth: 3
+   :hidden:
+   :caption: Sourcecode Documentation
+
+   api_documentation
+
+
+Troubleshooting
+^^^^^^^^^^^^^^^
+
+* :doc:`troubleshooting`
+
+.. toctree::
+   :maxdepth: 3
+   :hidden:
+   :caption: Troubleshooting
+
+   troubleshooting
+
+Further Information
+^^^^^^^^^^^^^^^^^^^
+
+* :doc:`contact`
+* :doc:`contributor`
+* :doc:`oss_used`
+
+.. toctree::
+   :maxdepth: 3
+   :hidden:
+   :caption: Further Information
+
+   contact
+   contributor
+   userlist
+   license
+   oss_used
+   
+
+.. note::
+
+	- Testnote: You can find the repo `here <https://github.com/L4rsG/F-Heat>`_.
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`

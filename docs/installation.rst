@@ -1,2 +1,5 @@
 Installation
-************
+------------
+
+.. attention::
+    - Attention note

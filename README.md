@@ -9,9 +9,10 @@ The Heat Planning Plugin for [QGIS](https://qgis.org/) enables functions like st
 3. [Installation](#installation)
 4. [Requirements](#requirements)
 5. [Documentation](#documentation)
-6. [Contributing](#contributing)
-7. [License](#license)
-8. [Acknowledgements](#acknowledgments)
+6. [Contact Information](#contact-information)
+7. [Contributing](#contributing)
+8. [License](#license)
+9. [Acknowledgements](#acknowledgments)
 
 ## Features and Usage
 
@@ -67,21 +68,29 @@ We welcome contributions from the community. Issues and Pull Requests for furthe
 4. Push your changes to your forked repository.
 5. Open a pull request to the main repository.
 
-Please ensure that your contributions align with the project's coding standards and add tests for new functionalities. If you've never contributed to an open source project before we are more than happy to walk you through how to create a pull request.
+Please ensure that your contributions align with the coding standards and consider to add tests for new functionalities. If you've never contributed to an open source project before we are more than happy to walk you through how to create a pull request.
 
-## Contact information
-For further information, questions or feedback, please contact one of the project maintainers
-![FH Logo](docs/images/readme/fh_logo.png)
+## Contact Information
+**F|Heat** is developed and maintained by FH Münster - University of Applied Sciences.
 
+<img src="docs/images/readme/fh_logo.png" alt="FH Logo" width="350">
+
+For further information, questions or feedback, please contact one of the project maintainers:
+
+### Organizational Matters and Usage
 - Hinnerk Willenbrink - willenbrink@fh-muenster.de
+
+### Technical Documentation and Development
 - Lars Goray - lars.goray@fh-muenster.de
 - Philipp Sommer - philipp.sommer@fh-muenster.de
 
 ## License
 
-F|Heat is licensed under the GPL 3.0 License. We refer to the `LICENSE` file for more information.
+**F|Heat** is licensed under the GPL 3.0 License. We refer to the `LICENSE` file for more information.
 
 ## Acknowledgments
 
 Credits to those who helped or inspired the project.
 
+## Additional Attribution
+This project uses code from the project [demandlib](https://github.com/oemof/demandlib) published under MIT license.
