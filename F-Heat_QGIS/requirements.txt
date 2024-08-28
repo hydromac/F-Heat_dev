@@ -1,8 +1,10 @@
 geopandas
 OWSLib
-pandas
+Pandas
+fiona
 numpy
 networkx
 matplotlib
 openpyxl
 demandlib
+workalendar
