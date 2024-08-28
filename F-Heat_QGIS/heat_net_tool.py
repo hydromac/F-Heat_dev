@@ -197,7 +197,7 @@ class HeatNetTool:
                 action)
             self.iface.removeToolBarIcon(action)
 
-    def install_package(self,package_list):
+    def install_package(self):
         '''
         Installs Python packages using pip.
 
@@ -211,19 +211,27 @@ class HeatNetTool:
         None
         '''
         # feedback
-        self.dlg.intro_label.setText('Installing modules...')
+        self.dlg.intro_label.setText('Starting Installation...')
         self.dlg.intro_label.setStyleSheet("color: orange")
         self.dlg.intro_label.repaint()
 
+        # get requirements
+        requirements_path =  self.plugin_dir+'/requirements.txt'
+        if not os.path.exists(requirements_path):
+            self.dlg.intro_label.setText(f"Error: {requirements_path} not found.")
+            self.dlg.intro_label.setStyleSheet("color: red")
+            self.dlg.intro_label.repaint()
+            
+        with open(requirements_path, 'r') as file:
+            package_list = [line.strip() for line in file if line.strip()]
+
         # check if pip is installed
         try:
-            # Versuch, pip zu importieren
             import pip
             print("pip ist bereits installiert.")
         except ImportError:
             print("pip ist nicht installiert. Versuche, pip zu installieren...")
             try:
-                # Verwende ensurepip, um pip zu installieren
                 import ensurepip
                 ensurepip.bootstrap()
                 print("pip wurde erfolgreich installiert.")
@@ -235,15 +243,12 @@ class HeatNetTool:
 
         try:
             # Execute the "pip install" command to install all packages
-            subprocess.check_call([python_executable, "-m", "pip", "install", "--upgrade"] + package_list)
-            # feedback
-            self.dlg.intro_label.setText('All modules succesfully installed.')
-            self.dlg.intro_label.setStyleSheet("color: green")
-            self.dlg.intro_label.repaint()
+            cmd = [python_executable, "-m", "pip", "install", "--upgrade"] + package_list
+            subprocess.check_call(["cmd", "/K"] + cmd)  # /K ceeps window open
         except subprocess.CalledProcessError as e:
             # feedback
-            self.dlg.intro_label.setText(f"Error installing packages: {e}")
-            self.dlg.intro_label.setStyleSheet("color: red")
+            self.dlg.intro_label.setText(f"Process finished or aborted: {e}")
+            self.dlg.intro_label.setStyleSheet("color: black")
             self.dlg.intro_label.repaint()
 
         # Import all packages
@@ -1379,9 +1384,7 @@ class HeatNetTool:
                 message_box.exec_()
 
             # install python packages
-
-            package_list = ['Pandas', 'numpy', 'openpyxl','networkx','geopandas','fiona', 'workalendar', 'matplotlib', 'demandlib', 'owslib']
-            self.dlg.intro_pushButton_load_packages.clicked.connect(lambda: self.install_package(package_list))
+            self.dlg.intro_pushButton_load_packages.clicked.connect(lambda: self.install_package())
             
             # Project path
             project_file_path = QgsProject.instance().fileName()
