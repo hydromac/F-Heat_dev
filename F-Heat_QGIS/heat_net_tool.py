@@ -636,6 +636,11 @@ class HeatNetTool:
         buildings_gdf['geometry'] = buildings_gdf['geometry'].buffer(0)
         parcels_gdf['geometry'] = parcels_gdf['geometry'].buffer(0)
 
+        # ensure correct crs
+        buildings_gdf.to_crs(self.epsg_code)
+        streets_gdf.to_crs(self.epsg_code)
+        parcels_gdf.to_crs(self.epsg_code)
+
         # The buildings and streets can only be downloaded at municipality level, if you only want one city, the 
         # additional buildings are superfluous and only extend the calculation time of the following programs.
         # Therefore, only buildings that are located on the parcels that are available at municipality level are retained
@@ -775,6 +780,12 @@ class HeatNetTool:
                 buildings_path = self.dlg.adjust_lineEdit_buildings.text()
                 streets_path = self.dlg.adjust_lineEdit_streets.text()
 
+            # ensure correct crs
+            if buildings.gdf.crs != self.epsg_code:
+                buildings.gdf.to_crs(self.epsg_code)
+            if streets.gdf.crs != self.epsg_code:
+                streets.gdf.to_crs(self.epsg_code)
+            
             # save shapes
             buildings.gdf.to_file(buildings_path)
             streets.gdf.to_file(streets_path)
@@ -862,6 +873,11 @@ class HeatNetTool:
         parcels = gpd.read_file(parcels_path)
         buildings = gpd.read_file(buildings_path)
 
+        # ensure correct crs
+        buildings.to_crs(self.epsg_code)
+        streets.to_crs(self.epsg_code)
+        parcels.to_crs(self.epsg_code)
+
         # HLD/WLD
         wld = WLD(buildings,streets)
         self.dlg.status_progressBar.setValue(5) # update progressBar
@@ -875,6 +891,7 @@ class HeatNetTool:
         self.dlg.status_progressBar.setValue(50) # update progressBar
         wld.add_WLD(heat_att=heat_attribute)
         self.dlg.status_progressBar.setValue(60) # update progressBar
+        # ensure correct crs
         wld.streets = wld.streets.to_crs(self.epsg_code)
         wld.streets.to_file(streets_path)
         self.add_shapefile_to_project(streets_path, style = 'hld' )
