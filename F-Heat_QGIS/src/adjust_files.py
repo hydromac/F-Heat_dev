@@ -468,6 +468,9 @@ class Buildings_adj():
         merged_df['Waermebedarf'] = merged_df['NF'] * merged_df['Spez_Waermebedarf']
         self.gdf = merged_df
 
+    def add_connect_option(self):
+        buildings = self.gdf
+        buildings['Anschluss'] = 1
 
 class Parcels_adj():
     '''
