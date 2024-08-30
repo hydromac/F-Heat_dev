@@ -767,6 +767,7 @@ class HeatNetTool:
             self.dlg.adjust_progressBar.setValue(70) # update progressBar
             buildings.add_power()
             buildings.add_custom_heat_demand(excel_building_demand)
+            buildings.add_connect_option()
 
             self.dlg.adjust_progressBar.setValue(80) # update progressBar
 
@@ -1035,6 +1036,12 @@ class HeatNetTool:
         # Drop unwanted routes if existing
         try:
             streets.gdf = streets.gdf[streets.gdf['possible_route']==1]
+        except:
+            pass
+
+        # Drop unconnected buildings if existing
+        try:
+            buildings.gdf = buildings.gdf[buildings.gdf['Anschluss']==1]
         except:
             pass
 
