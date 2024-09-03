@@ -14,7 +14,12 @@ The initial user interface is called F|Heat.ai and this also formulates the requ
 .. _components_table:
 
 Development Roadmap
-*******************
+-------------------
 
+Example
+-------
 
+.. TODO: Add example for one small municipality after installation process
 
+.. note::
+    A detailed example will be added here.

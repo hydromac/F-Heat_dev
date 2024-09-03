@@ -22,10 +22,12 @@ The current database is based on open data sources that are freely accessible.
     - `Enerpipe <https://www.enerpipe.de/typo3conf/ext/so_bp_base/Resources/Public/JavaScript/Dist/pdfjs/web/viewer.html?file=/fileadmin/daten/02_produkte/06_Rohre-und-Verbindungstechnik/Rohrsysteme_TI_821000100_04-2021_web.pdf#page=1>`_
     - `Isoplus <https://www.isoplus.de/fileadmin/data/downloads/documents/germany/products/Doppelrohr-8-Seiten_DEUTSCH_Web.pdf>`_
 
+.. TODO: Add RWT Jagdt table description
 
 Limitations
 -----------
-The content of the download is designed for NRW, as there is no standardised nationwide data source yet. The further steps of the plugin can also be carried out for other federal states, provided that the data structure is the same and the attributes have the same names.
+The content of the download is designed for NRW, as there is no standardised nationwide data source yet.
+The further steps of the plugin can also be carried out for other federal states, provided that the data structure is the same and the attributes have the same names.
 Unlike many other planning software programmes, the plugin is free and open source. 
 These are also developed for detailed planning and do not offer the possibility of carrying out rough designs in just a few minutes. Tools such as nPro, for example, are also primarily developed for neighbourhood planning and not for municipal heat planning.
 
