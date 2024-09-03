@@ -39,7 +39,7 @@ extensions = [
     "sphinx.ext.viewcode",
 ]
 
-# TODO: Append the list of modules to mock for static html builds
+# Mock import for static html builds
 autodoc_mock_imports = [
     'pandas',
     'geopandas',
