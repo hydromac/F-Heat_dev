@@ -434,13 +434,6 @@ class Buildings_adj():
             - 'Waerme_MFH kWh/m²·a': Specific heat demand for multi-family houses (MFH) in kWh/m²·a.
             - 'Waerme_EFH kWh/m²·a': Specific heat demand for single-family houses (EFH) in kWh/m²·a.
 
-        Updates
-        -------
-        self.gdf : pd.DataFrame
-            The GeoDataFrame is updated with new columns:
-            - 'Spez_Waermebedarf': Specific heat demand based on the building type.
-            - 'Waermebedarf': Calculated heat demand based on the specific heat demand and the building's net floor area (NF).
-
         Notes
         -----
         The method assumes that 'Lastprofil' in the GeoDataFrame specifies the building type as either 'MFH' or 'EFH'.
