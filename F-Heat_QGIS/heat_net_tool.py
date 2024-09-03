@@ -855,6 +855,11 @@ class HeatNetTool:
         # update progressBar
         self.dlg.status_progressBar.setValue(0)
 
+        # feedback
+        self.dlg.status_label_response.setText('Calculating...')
+        self.dlg.status_label_response.setStyleSheet("color: orange")
+        self.dlg.status_label_response.repaint()
+
         # layer from combo box
         streets_path, streets_layer_name, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.status_comboBox_streets)
         parcels_path, parcels_layer_name, parcels_layer_obj = self.get_layer_path_from_combobox(self.dlg.status_comboBox_parcels)
@@ -909,6 +914,11 @@ class HeatNetTool:
         polygons.polygons.to_file(polygon_path, crs=self.epsg_code, engine = 'fiona')
         self.add_shapefile_to_project(polygon_path, style = 'polygons')
         self.dlg.status_progressBar.setValue(100) # update progressBar
+
+        # feedback
+        self.dlg.status_label_feedback.setStyleSheet("color: green")
+        self.dlg.status_label_feedback.setText('Completed!')
+        self.dlg.status_label_feedback.repaint()
 
     def network_analysis(self):
         '''
@@ -1001,6 +1011,13 @@ class HeatNetTool:
         # Temperatures from SpinBox
         t_supply = self.dlg.net_doubleSpinBox_supply.value()
         t_return = self.dlg.net_doubleSpinBox_return.value()
+
+        if t_supply <= t_return:
+            # feedback
+            self.dlg.net_label_response.setText('The return temperature has to be smaller than the supply temperature!')
+            self.dlg.net_label_response.setStyleSheet("color: red")
+            self.dlg.net_label_response.repaint()
+            return
 
         # Layer paths
         source_path, source_layer, source_layer_obj = self.get_layer_path_from_combobox(self.dlg.net_comboBox_source)
@@ -1282,6 +1299,7 @@ class HeatNetTool:
 
             temp = Temperature(url_temp)
             stations = temp.stationsfromtxt()
+            print(stations)
             station = temp.nearestStation(poi,stations,year,n)
             station_id = station['Stations_id'][0]
             start_date = station['von_datum'][0]
