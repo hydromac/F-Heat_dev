@@ -19,6 +19,8 @@ Structure of the Documentation
 ------------------------------
 This documentation consists of the following sections:
 
+.. TODO: Enumerate rst-files for a better overview in the directory
+
 General Information
 ^^^^^^^^^^^^^^^^^^^
 * :doc:`introduction`
@@ -95,11 +97,13 @@ Further Information
 
    contact
    contributor
+   citation
    userlist
    license
+   related_projects
    oss_used
+   acknowledgments
    
-
 .. note::
 
 	- Testnote: You can find the repo `here <https://github.com/L4rsG/F-Heat>`_.

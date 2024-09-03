@@ -16,7 +16,6 @@ Download Files
 
 .. automodule:: src.download_files
     :members:
-    :undoc-members:
     :show-inheritance:
 
 Adjust Files
@@ -24,7 +23,6 @@ Adjust Files
 
 .. automodule:: src.adjust_files
     :members:
-    :undoc-members:
     :show-inheritance:
 
 Demand Curve
@@ -49,10 +47,8 @@ Net Analysis
     :undoc-members:
     :show-inheritance:
 
-QGIS Heat Net Tool
-------------------
+.. QGIS Heat Net Tool
+.. ------------------
 
-.. .. automodule:: F-Heat_QGIS.heat_net_tool
+.. .. automodule:: heat_net_tool
 ..     :members:
-..     :undoc-members:
-..     :show-inheritance:
