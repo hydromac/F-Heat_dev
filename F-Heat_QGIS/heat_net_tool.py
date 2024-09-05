@@ -44,7 +44,7 @@ try:
     from .src.adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
     from .src.status_analysis import WLD, Polygons
     from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
-    from .src.load_curve import Temperature, LoadProfile
+    from .src.load_curve import Temperature, LoadProfile, safe_in_excel
     from workalendar.europe import Germany
 except:
     pass
@@ -259,7 +259,7 @@ class HeatNetTool:
         from .src.adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
         from .src.status_analysis import WLD, Polygons
         from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
-        from .src.load_curve import Temperature, LoadProfile
+        from .src.load_curve import Temperature, LoadProfile, safe_in_excel
         from workalendar.europe import Germany
 
     def select_output_file(self, dir, lineEdit, filetype):
@@ -282,6 +282,28 @@ class HeatNetTool:
         filename, _filter = QFileDialog.getSaveFileName(
             self.dlg, "Select output file ",dir, filetype)
         lineEdit.setText(filename)
+    
+    def select_input_file(self, dir, lineEdit, filetype):
+        '''
+        Opens a file dialog to select an input file and sets the selected path to a QLineEdit.
+
+        Parameters
+        ----------
+        dir : str
+            The directory to start the file dialog in.
+        lineEdit : QLineEdit
+            The QLineEdit widget to display the selected file path.
+        filetype : str
+            The file type filter for the dialog (e.g., "*.txt").
+
+        Returns
+        -------
+        None
+        '''
+        filename, _filter = QFileDialog.getOpenFileName(
+            self.dlg, "Select input file", dir, filetype)
+        if filename:  # Check if the user selected a file
+            lineEdit.setText(filename)
 
     def get_layer_path_from_combobox(self, combobox):
         '''
@@ -1290,22 +1312,28 @@ class HeatNetTool:
         ## temperature
         if self.dlg.net_checkBox_temperature.isChecked():
             temp_path = self.dlg.net_lineEdit_temperature.text()
-            averegae_temp_profile = pd.read_excel(temp_path)
+            temp_profile = pd.read_excel(temp_path)
         else:
-            poi = (source.gdf['geometry'][0].x, source.gdf['geometry'][0].y) # Point of interest
-            year = 2022 # historical data goes up to 2022
-            n = 10  # number of years for mean value
-            url_temp = 'https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/hourly/air_temperature/historical/'
+            # poi = (source.gdf['geometry'][0].x, source.gdf['geometry'][0].y) # Point of interest
+            # n = 5  # number of years for mean value
+            # url_temp = 'https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/hourly/air_temperature/historical/'
 
-            temp = Temperature(url_temp)
-            stations = temp.stationsfromtxt()
-            print(stations)
-            station = temp.nearestStation(poi,stations,year,n)
-            station_id = station['Stations_id'][0]
-            start_date = station['von_datum'][0]
-            end_date = station['bis_datum'][0]
-            if end_date > 20221231: end_date = 20221231 # historische Daten gehen bis Ende 2022
-            averegae_temp_profile = temp.tempdata(temp.url, station_id, year, start_date, end_date, n)
+            # temp = Temperature(url_temp)
+            # stations = temp.stationsfromtxt()
+            # station = temp.nearestStation(poi,stations,n)
+            # station_id = station['Stations_id'][0]
+            # station_name = station['Stationsname'][0]
+            # start_date = station['von_datum'][0]
+            # end_date = station['bis_datum'][0]
+            # average_temp_profile = temp.tempdata(temp.url, station_id, start_date, end_date, n)
+
+            # if self.dlg.net_checkBox_save_temp.isChecked():
+            #     save_path = self.dlg.net_lineEdit_save_temp.text()
+            #     average_temp_profile['Station_ID'] = station_id
+            #     average_temp_profile['Station_Name'] = station_name
+            #     safe_in_excel(save_path, average_temp_profile, sheet = 'Temperature_Data')
+            temp_path = Path(self.plugin_dir) / 'data/example_temperature.xlsx'
+            temp_profile = pd.read_excel(temp_path)
 
         # update progressBar
         self.dlg.net_progressBar.setValue(25)
@@ -1322,7 +1350,7 @@ class HeatNetTool:
         holidays = dict(cal.holidays(year))
 
         # temperature
-        temperature_data = averegae_temp_profile['TT_TU']
+        temperature_data = temp_profile['TT_TU']
 
         # load_profile class
         load_profile = LoadProfile(result.gdf, result_path, year, temperature_data, holidays)
@@ -1415,7 +1443,7 @@ class HeatNetTool:
                 from .src.adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
                 from .src.status_analysis import WLD, Polygons
                 from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
-                from .src.load_curve import Temperature, LoadProfile
+                from .src.load_curve import Temperature, LoadProfile, safe_in_excel
                 from workalendar.europe import Germany
             except Exception as e:
                 message_box = QMessageBox()
@@ -1480,14 +1508,19 @@ class HeatNetTool:
             self.dlg.net_pushButton_result.clicked.connect(
                 lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_result,'*.xlsx'))
             self.dlg.net_pushButton_temperature.clicked.connect(
-                lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_temperature,'*.xlsx'))
+                lambda: self.select_input_file(self.project_dir, self.dlg.net_lineEdit_temperature,'*.xlsx'))
+            # self.dlg.net_pushButton_save_temp.clicked.connect(
+            #     lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_save_temp,'*.xlsx'))
+            
+            # # uncheck save temp if own temperature is checked
+            # self.dlg.net_checkBox_temperature.stateChanged.connect(lambda state: self.dlg.net_checkBox_save_temp.setChecked(False) if state == Qt.Checked else None)
 
             # start network analysis
             self.dlg.net_pushButton_start.clicked.connect(self.network_analysis)
 
             # create result file
             self.dlg.net_pushButton_create_result.clicked.connect(self.create_result)
-
+        
         # updates when tab is changed
         self.dlg.tabWidget.currentChanged.connect(self.tab_change)
 
