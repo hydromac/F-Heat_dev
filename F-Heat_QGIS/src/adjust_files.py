@@ -287,6 +287,9 @@ class Buildings_adj():
         '''
         self.gdf[['type', 'age_LANUV']] = self.gdf['GEBAEUDETY'].str.split('_', expand=True)
 
+        # set type = NWG (Nichtwohngebaeude) for all NWG 
+        self.gdf.loc[self.gdf['WG_NWG'] == 'NWG', 'type'] = 'NWG'
+
     def merge_buildings(self):
         '''
         Merges building geometries and attributes, performing custom aggregations.
@@ -397,7 +400,10 @@ class Buildings_adj():
             '''
             return (s * weights).sum() / weights.sum()
            
-        grouped_gdf = self.gdf.dissolve(by=['Flurstueck', 'citygml_fu', 'Fortschrei'], as_index=False, aggfunc={
+        grouped_gdf = self.gdf.dissolve(
+            by=['Flurstueck', 'citygml_fu', 'Fortschrei', 'type'], 
+            as_index=False, 
+            aggfunc={
             'Fest_ID': 'first', 
             'Nutzung': 'first', 
             'NF': 'sum', 
@@ -407,14 +413,7 @@ class Buildings_adj():
             'WW': 'sum',
             'RW_WW_spez': lambda x: weighted_average(x, self.gdf.loc[x.index, 'NF']),
             'RW_WW': 'sum',
-            #'validFrom' : 'first',
-            #'BAK': mode_or_string,
             'age_LANUV': mode_or_string,
-            'type': mode_or_string
-            #'Lastprofil': 'first',
-            #'Vlh': 'first',
-            #'power_th': 'sum',
-            #'new_ID': 'first'
             })
         self.gdf = grouped_gdf
     
