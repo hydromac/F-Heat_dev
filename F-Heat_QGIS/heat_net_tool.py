@@ -658,16 +658,11 @@ class HeatNetTool:
         buildings_gdf['geometry'] = buildings_gdf['geometry'].buffer(0)
         parcels_gdf['geometry'] = parcels_gdf['geometry'].buffer(0)
 
-        # ensure correct crs
-        buildings_gdf.to_crs(self.epsg_code)
-        streets_gdf.to_crs(self.epsg_code)
-        parcels_gdf.to_crs(self.epsg_code)
-
         # The buildings and streets can only be downloaded at municipality level, if you only want one city, the 
         # additional buildings are superfluous and only extend the calculation time of the following programs.
         # Therefore, only buildings that are located on the parcels that are available at municipality level are retained
         if parameter == 'city':
-            union = gpd.GeoDataFrame(geometry=[parcels_gdf.unary_union], crs = self.epsg_code)
+            union = gpd.GeoDataFrame(geometry=[parcels_gdf.unary_union])
             buildings_gdf = gpd.sjoin(buildings_gdf, union, predicate='intersects')
             streets_gdf = gpd.sjoin(streets_gdf, union, predicate='intersects')
 
@@ -762,9 +757,9 @@ class HeatNetTool:
         # update progressBar
         self.dlg.adjust_progressBar.setValue(5)
 
-        parcels = Parcels_adj(parcels_path, self.epsg_code)
-        buildings = Buildings_adj(buildings_path, heat_att, self.epsg_code)
-        streets = Streets_adj(streets_path, self.epsg_code)
+        parcels = Parcels_adj(parcels_path)
+        buildings = Buildings_adj(buildings_path, heat_att)
+        streets = Streets_adj(streets_path)
 
         # test if buildings already have been adjusted
         if 'Lastprofil' in buildings.gdf.columns:
@@ -803,12 +798,6 @@ class HeatNetTool:
                 buildings_path = self.dlg.adjust_lineEdit_buildings.text()
                 streets_path = self.dlg.adjust_lineEdit_streets.text()
 
-            # ensure correct crs
-            if buildings.gdf.crs != self.epsg_code:
-                buildings.gdf.to_crs(self.epsg_code)
-            if streets.gdf.crs != self.epsg_code:
-                streets.gdf.to_crs(self.epsg_code)
-            
             # save shapes
             buildings.gdf.to_file(buildings_path)
             streets.gdf.to_file(streets_path)
@@ -901,11 +890,6 @@ class HeatNetTool:
         parcels = gpd.read_file(parcels_path)
         buildings = gpd.read_file(buildings_path)
 
-        # ensure correct crs
-        buildings.to_crs(self.epsg_code)
-        streets.to_crs(self.epsg_code)
-        parcels.to_crs(self.epsg_code)
-
         # HLD/WLD
         wld = WLD(buildings,streets)
         self.dlg.status_progressBar.setValue(5) # update progressBar
@@ -919,8 +903,6 @@ class HeatNetTool:
         self.dlg.status_progressBar.setValue(50) # update progressBar
         wld.add_WLD(heat_att=heat_attribute)
         self.dlg.status_progressBar.setValue(60) # update progressBar
-        # ensure correct crs
-        wld.streets = wld.streets.to_crs(self.epsg_code)
         wld.streets.to_file(streets_path)
         self.add_shapefile_to_project(streets_path, style = 'hld' )
         
@@ -933,14 +915,14 @@ class HeatNetTool:
         self.dlg.status_progressBar.setValue(80) # update progressBar
         polygons.add_attributes(heat_attribute, power_attribute)
         self.dlg.status_progressBar.setValue(90) # update progressBar
-        polygons.polygons.to_file(polygon_path, crs=self.epsg_code, engine = 'fiona')
+        polygons.polygons.to_file(polygon_path)
         self.add_shapefile_to_project(polygon_path, style = 'polygons')
         self.dlg.status_progressBar.setValue(100) # update progressBar
 
         # feedback
-        self.dlg.status_label_feedback.setStyleSheet("color: green")
-        self.dlg.status_label_feedback.setText('Completed!')
-        self.dlg.status_label_feedback.repaint()
+        self.dlg.status_label_response.setStyleSheet("color: green")
+        self.dlg.status_label_response.setText('Completed!')
+        self.dlg.status_label_response.repaint()
 
     def network_analysis(self):
         '''
@@ -1146,9 +1128,13 @@ class HeatNetTool:
         # update progressBar
         self.dlg.net_progressBar.setValue(45)
 
+        # Project CRS
+        project_crs = QgsProject.instance().crs()
+        epsg_code = project_crs.authid()
+
         # GeoDataFrame from net
         net.ensure_power_attribute()
-        net.graph_to_gdf(crs = self.epsg_code)
+        net.graph_to_gdf(crs = epsg_code)
         
         # save net shape
         net.gdf.to_file(shape_path)
@@ -1459,10 +1445,6 @@ class HeatNetTool:
             # Project path
             project_file_path = QgsProject.instance().fileName()
             self.project_dir = os.path.dirname(project_file_path)
-
-            # Project CRS
-            project_crs = QgsProject.instance().crs()
-            self.epsg_code = project_crs.authid()
 
             ### Load ###
 

@@ -185,7 +185,8 @@ class Polygons:
         selected_parcels = max_coverage[max_coverage['coverage_ratio'] >= 0.1]
 
         # Remove 'centroid' column
-        selected_parcels = selected_parcels.drop(columns=['centroid'])
+        if 'centroid' in selected_parcels.columns:
+            selected_parcels = selected_parcels.drop(columns=['centroid'])
         
         self.selected_parcels = selected_parcels
 
@@ -198,17 +199,22 @@ class Polygons:
         buffer_distance : float
             Distance of the buffer in meters.
         """
+        # define crs
+        crs = self.parcels.crs
 
-        # Buffer anlegen
+        # Buffer
         self.selected_parcels['geometry'] = self.selected_parcels.buffer(buffer_distance)
         
-        # Zusammenführen (Dissolving) aller Polygone
+        # Dissolving all Polygons
         dissolved = self.selected_parcels.dissolve()
 
-        # MultiPolygons in ihre Bestandteile aufteilen (Explodieren)
+        # explode multipolygons
         exploded = dissolved.explode(index_parts=True).reset_index(drop=True)
 
-        # Attribute entfernen und nur die Geometrie beibehalten
+        # set crs
+        exploded = exploded.set_crs(crs, allow_override=True)
+
+        # remove all attributes 
         self.polygons = exploded[['geometry']]
 
     def add_attributes(self,heat_attribute, power_attribute):

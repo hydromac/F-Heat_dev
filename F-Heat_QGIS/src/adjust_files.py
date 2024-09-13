@@ -7,7 +7,7 @@ import numpy as np
 
 class Streets_adj():
     '''
-     A class used to represent and manipulate street geometries.
+    A class used to represent and manipulate street geometries.
 
     This class provides methods to round the coordinates of street geometries and to add a boolean column
     indicating possible routes.
@@ -26,7 +26,7 @@ class Streets_adj():
         Adds a boolean column indicating possible routes.
     '''
 
-    def __init__(self, path, projected_crs):
+    def __init__(self, path):
         '''
         Initializes the Streets_adj class with a GeoDataFrame of street geometries.
 
@@ -34,10 +34,8 @@ class Streets_adj():
         ----------
         path : str
             The file path to the shapefile containing the street geometries.
-        projected_crs : str
-            The coordinate reference system to be used for the GeoDataFrame.
         '''
-        self.gdf = gpd.read_file(path, crs=projected_crs)
+        self.gdf = gpd.read_file(path)
         
     def round_streets(self):
         '''
@@ -152,7 +150,7 @@ class Buildings_adj():
     add_custom_heat_demand(building_data):
         Adds custom heat demand data to the existing GeoDataFrame based on building characteristics.
     '''
-    def __init__(self, path, heat_att, projected_crs):
+    def __init__(self, path, heat_att):
         '''
          Initializes the Buildings_adj class with a GeoDataFrame of building geometries and attributes.
 
@@ -162,10 +160,8 @@ class Buildings_adj():
             The file path to the shapefile containing the building geometries.
         heat_att : str
             The attribute name for heat data.
-        projected_crs : str
-            The coordinate reference system to be used for the GeoDataFrame.
         '''
-        self.gdf = gpd.read_file(path, crs=projected_crs)
+        self.gdf = gpd.read_file(path)
         self.heat_att = heat_att
 
     def add_Vlh_Loadprofile(self, excel_data):
@@ -477,10 +473,10 @@ class Parcels_adj():
 
     Methods
     -------
-    __init__(path, projected_crs):
+    __init__(path):
         Initializes the Parcels_adj class with a GeoDataFrame of parcel geometries.
     '''
-    def __init__(self, path, projected_crs):
+    def __init__(self, path):
         '''
         Initializes the Parcels_adj class with a GeoDataFrame of parcel geometries.
 
@@ -488,10 +484,8 @@ class Parcels_adj():
         ----------
         path : str
             The file path to the shapefile containing the parcel geometries.
-        projected_crs : str
-            The coordinate reference system to be used for the GeoDataFrame.
         '''
-        self.gdf = gpd.read_file(path, crs=projected_crs)
+        self.gdf = gpd.read_file(path)
 
 def spatial_join(shape1, shape2, attributes):
     '''
