@@ -1128,13 +1128,9 @@ class HeatNetTool:
         # update progressBar
         self.dlg.net_progressBar.setValue(45)
 
-        # Project CRS
-        project_crs = QgsProject.instance().crs()
-        epsg_code = project_crs.authid()
-
         # GeoDataFrame from net
         net.ensure_power_attribute()
-        net.graph_to_gdf(crs = epsg_code)
+        net.graph_to_gdf(crs = buildings.gdf.crs)
         
         # save net shape
         net.gdf.to_file(shape_path)
