@@ -432,8 +432,6 @@ class HeatNetTool:
         # Clear the city ComboBox
         self.dlg.load_comboBox_city.clear()
 
-        print('cleared')
-
         # Add the filtered cities to the city ComboBox
         self.dlg.load_comboBox_city.addItems(sorted_cities)
 
