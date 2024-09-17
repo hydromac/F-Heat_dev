@@ -24,7 +24,7 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QCompleter, QMessageBox
-from qgis.core import Qgis, QgsField, QgsProject, QgsMapLayer, QgsVectorLayer, QgsMessageLog
+from qgis.core import Qgis, QgsField, QgsProject, QgsMapLayer, QgsVectorLayer, QgsMessageLog, QgsLayerTreeLayer
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -343,7 +343,35 @@ class HeatNetTool:
         else:
             return None, None, None
 
-    def add_shapefile_to_project(self, shapefile_path, style=None):
+    def create_layer_tree_structure(self):
+        '''
+        Creates the desired layer tree structure if it does not already exist.
+
+        This function checks if the group 'FHeat' exists in the layer tree. If it does not, it creates the group
+        and adds the subgroups 'Basics', 'adjusted', 'status', and 'net' under it. 
+
+        Returns
+        -------
+        None
+        '''
+        # Get the root group in the Layer tree
+        root = QgsProject.instance().layerTreeRoot()
+
+        # Check if the 'FHeat' group already exists
+        fheat_group = root.findGroup('F|Heat')
+
+        if fheat_group is None:
+            # Create the 'FHeat' group
+            fheat_group = root.addGroup('F|Heat')
+
+            # Define the subgroups
+            subgroups = ['Net', 'Heat Density', 'Adjusted Files', 'Basic Data']
+            
+            # Add each subgroup to 'FHeat'
+            for subgroup in subgroups:
+                fheat_group.addGroup(subgroup)
+
+    def add_shapefile_to_project(self, shapefile_path, style=None, group_name=None):
         '''
         Adds a shapefile to the QGIS project.
 
@@ -353,6 +381,8 @@ class HeatNetTool:
             The file path of the shapefile to add.
         style : str, optional
             The name of the style to apply to the layer. Options include 'hld', 'polygons', 'net', 'streets', 'buildings', 'parcels'.
+        group_name : str
+            Layer group where the layer should be added
 
         Returns
         -------
@@ -364,7 +394,24 @@ class HeatNetTool:
             print("Layer failed to load!")
             return
 
-        QgsProject.instance().addMapLayer(layer)
+        # Get the root group in the Layer tree
+        root = QgsProject.instance().layerTreeRoot()
+
+        if group_name:
+            # Check if the group exists
+            group = root.findGroup(group_name)
+            
+            # If the group doesn't exist, create it
+            if group is None:
+                group = root.addGroup(group_name)
+            
+            # Add the layer to the specified group
+            QgsProject.instance().addMapLayer(layer, False)  # False prevents adding to the top-level group
+            group.insertChildNode(0, QgsLayerTreeLayer(layer))  # Add layer to group
+
+        else:
+            # If no group is specified, add the layer to the root
+            QgsProject.instance().addMapLayer(layer)
 
         # Apply style
         if style == 'hld':
@@ -697,9 +744,9 @@ class HeatNetTool:
         parcels_gdf.to_file(parcels_path)
 
         # load layers to project
-        self.add_shapefile_to_project(parcels_path, style = 'parcels')
-        self.add_shapefile_to_project(buildings_path, style = 'buildings')
-        self.add_shapefile_to_project(streets_path, style = 'streets')
+        self.add_shapefile_to_project(parcels_path, style = 'parcels', group_name='Basic Data')
+        self.add_shapefile_to_project(buildings_path, style = 'buildings', group_name='Basic Data')
+        self.add_shapefile_to_project(streets_path, style = 'streets', group_name='Basic Data')
         
         # update progressBar
         self.dlg.load_progressBar.setValue(100)
@@ -821,13 +868,13 @@ class HeatNetTool:
 
             # check if files are overwritten or newly created
             if self.dlg.adjust_radioButton_new.isChecked():
-                self.add_shapefile_to_project(streets_path)
-                self.add_shapefile_to_project(buildings_path)
+                self.add_shapefile_to_project(streets_path, group_name='Adjusted Files')
+                self.add_shapefile_to_project(buildings_path, group_name='Adjusted Files')
             else:
                 QgsProject.instance().removeMapLayer(buildings_layer_obj)
                 QgsProject.instance().removeMapLayer(streets_layer_obj)
-                self.add_shapefile_to_project(streets_path, style = 'streets')
-                self.add_shapefile_to_project(buildings_path, style = 'buildings')
+                self.add_shapefile_to_project(streets_path, style = 'streets', group_name='Adjusted Files')
+                self.add_shapefile_to_project(buildings_path, style = 'buildings', group_name='Adjusted Files')
             
             self.dlg.adjust_progressBar.setValue(100) # update progressBar
 
@@ -921,7 +968,7 @@ class HeatNetTool:
         wld.add_WLD(heat_att=heat_attribute)
         self.dlg.status_progressBar.setValue(60) # update progressBar
         wld.streets.to_file(streets_path)
-        self.add_shapefile_to_project(streets_path, style = 'hld' )
+        self.add_shapefile_to_project(streets_path, style = 'hld', group_name = 'Heat Density')
         
 
         # polygons
@@ -933,7 +980,7 @@ class HeatNetTool:
         polygons.add_attributes(heat_attribute, power_attribute)
         self.dlg.status_progressBar.setValue(90) # update progressBar
         polygons.polygons.to_file(polygon_path)
-        self.add_shapefile_to_project(polygon_path, style = 'polygons')
+        self.add_shapefile_to_project(polygon_path, style = 'polygons', group_name = 'Heat Density')
         self.dlg.status_progressBar.setValue(100) # update progressBar
 
         # feedback
@@ -1153,7 +1200,7 @@ class HeatNetTool:
         net.gdf.to_file(shape_path)
 
         # load net as layer
-        self.add_shapefile_to_project(shape_path, 'net')
+        self.add_shapefile_to_project(shape_path, 'net', group_name='Net')
 
         # update progressBar
         self.dlg.net_progressBar.setValue(100)
@@ -1511,6 +1558,9 @@ class HeatNetTool:
             # create result file
             self.dlg.net_pushButton_create_result.clicked.connect(self.create_result)
         
+        # Create F|Heat layer structure
+        self.create_layer_tree_structure()
+
         # updates when tab is changed
         self.dlg.tabWidget.currentChanged.connect(self.tab_change)
 
