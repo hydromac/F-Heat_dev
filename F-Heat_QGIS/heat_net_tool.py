@@ -416,7 +416,26 @@ class HeatNetTool:
 
         # save df for later operations
         self.gemarkungen_df = df
+    
+    def adapt_download_options(self):
+        '''
+        Adjusts the city ComboBox based on the selected municipality.
+        '''
+        value = self.dlg.load_comboBox_municipality.currentText()
 
+        # Filter the dataframe based on the selected municipality
+        filtered_cities = self.gemarkungen_df[self.gemarkungen_df['gemeinde'] == value]['name'].tolist()
+
+        # Sort the list of cities for the selected municipality (value)
+        sorted_cities = sorted(filtered_cities)
+
+        # Clear the city ComboBox
+        self.dlg.load_comboBox_city.clear()
+
+        print('cleared')
+
+        # Add the filtered cities to the city ComboBox
+        self.dlg.load_comboBox_city.addItems(sorted_cities)
 
     # Methods for loading layers and attributes to comboboxes
 
@@ -1410,6 +1429,10 @@ class HeatNetTool:
     def run(self):
         """Run method that performs all the real work"""
 
+        # Project path
+        project_file_path = QgsProject.instance().fileName()
+        self.project_dir = os.path.dirname(project_file_path)
+
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
         if self.first_start == True:
@@ -1437,10 +1460,6 @@ class HeatNetTool:
 
             # install python packages
             self.dlg.intro_pushButton_load_packages.clicked.connect(lambda: self.install_package())
-            
-            # Project path
-            project_file_path = QgsProject.instance().fileName()
-            self.project_dir = os.path.dirname(project_file_path)
 
             ### Load ###
 
@@ -1487,11 +1506,6 @@ class HeatNetTool:
                 lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_result,'*.xlsx'))
             self.dlg.net_pushButton_temperature.clicked.connect(
                 lambda: self.select_input_file(self.project_dir, self.dlg.net_lineEdit_temperature,'*.xlsx'))
-            # self.dlg.net_pushButton_save_temp.clicked.connect(
-            #     lambda: self.select_output_file(self.project_dir, self.dlg.net_lineEdit_save_temp,'*.xlsx'))
-            
-            # # uncheck save temp if own temperature is checked
-            # self.dlg.net_checkBox_temperature.stateChanged.connect(lambda state: self.dlg.net_checkBox_save_temp.setChecked(False) if state == Qt.Checked else None)
 
             # start network analysis
             self.dlg.net_pushButton_start.clicked.connect(self.network_analysis)
@@ -1501,6 +1515,9 @@ class HeatNetTool:
         
         # updates when tab is changed
         self.dlg.tabWidget.currentChanged.connect(self.tab_change)
+
+        # update the download options
+        self.dlg.load_comboBox_municipality.currentIndexChanged.connect(self.adapt_download_options)
 
         # Connect signal for status_comboBox_buildings to load attributes on change
         self.dlg.status_comboBox_buildings.currentIndexChanged.connect(
@@ -1514,6 +1531,5 @@ class HeatNetTool:
         self.dlg.net_comboBox_buildings.currentIndexChanged.connect(
             lambda: self.load_attributes('net_comboBox_buildings', 'net_comboBox_power'))
 
-        
         # show the dialog
         self.dlg.show()
