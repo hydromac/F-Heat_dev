@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>616</width>
-    <height>757</height>
+    <width>611</width>
+    <height>819</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -41,8 +41,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>575</width>
-        <height>790</height>
+        <width>587</width>
+        <height>795</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout_10">
@@ -63,7 +63,7 @@
           <enum>QTabWidget::North</enum>
          </property>
          <property name="currentIndex">
-          <number>1</number>
+          <number>0</number>
          </property>
          <widget class="QWidget" name="tab_intro">
           <attribute name="title">
@@ -407,6 +407,9 @@ p, li { white-space: pre-wrap; }
                   <verstretch>0</verstretch>
                  </sizepolicy>
                 </property>
+                <property name="toolTip">
+                 <string>After a city is chosen from the first combobox, the second one adjusts and shows the corresponding districts.</string>
+                </property>
                 <property name="text">
                  <string>Choose a city or a single district</string>
                 </property>
@@ -742,7 +745,7 @@ p, li { white-space: pre-wrap; }
               <item row="0" column="0">
                <widget class="QLabel" name="label_28">
                 <property name="text">
-                 <string>Polygons Output</string>
+                 <string>Heat Density Output</string>
                 </property>
                </widget>
               </item>
@@ -752,7 +755,7 @@ p, li { white-space: pre-wrap; }
            <item row="3" column="0">
             <widget class="QLabel" name="label_30">
              <property name="text">
-              <string>Set a directory for the Polygons GIS file</string>
+              <string>Set a directory for the heat density polygons GIS file</string>
              </property>
             </widget>
            </item>
@@ -984,7 +987,7 @@ p, li { white-space: pre-wrap; }
              <property name="maximumSize">
               <size>
                <width>16777215</width>
-               <height>260</height>
+               <height>265</height>
               </size>
              </property>
              <property name="html">
@@ -1354,6 +1357,9 @@ p, li { white-space: pre-wrap; }
                <height>2000</height>
               </size>
              </property>
+             <property name="toolTip">
+              <string/>
+             </property>
              <property name="frameShape">
               <enum>QFrame::StyledPanel</enum>
              </property>
@@ -1401,7 +1407,7 @@ p, li { white-space: pre-wrap; }
                  <bool>true</bool>
                 </property>
                 <property name="toolTip">
-                 <string>Test</string>
+                 <string/>
                 </property>
                 <property name="toolTipDuration">
                  <number>0</number>
@@ -1421,6 +1427,9 @@ p, li { white-space: pre-wrap; }
                   <horstretch>0</horstretch>
                   <verstretch>0</verstretch>
                  </sizepolicy>
+                </property>
+                <property name="toolTip">
+                 <string>Two files are generated during the network calculation: firstly, the heating network as a vector layer, where the routes are mapped via the road center line. The user can then, for example, visualize the pipe dimensions or adjust the routing. Secondly, an Excel table (&quot;Result Output&quot;) is generated, displaying the network parameters, statistics, and load profile.</string>
                 </property>
                 <property name="text">
                  <string>Result Output</string>
@@ -1482,6 +1491,9 @@ p, li { white-space: pre-wrap; }
                   <height>16777215</height>
                  </size>
                 </property>
+                <property name="toolTip">
+                 <string>Two files are generated during the network calculation: firstly, the heating network as a vector layer, where the routes are mapped via the road center line. The user can then, for example, visualize the pipe dimensions or adjust the routing. Secondly, an Excel table (&quot;Result Output&quot;) is generated, displaying the network parameters, statistics, and load profile.</string>
+                </property>
                 <property name="text">
                  <string>Net Output</string>
                 </property>
@@ -1489,6 +1501,9 @@ p, li { white-space: pre-wrap; }
               </item>
               <item row="0" column="0" colspan="3">
                <widget class="QLabel" name="label_26">
+                <property name="toolTip">
+                 <string>Two files are generated during the network calculation: firstly, the heating network as a vector layer, where the routes are mapped via the road center line. The user can then, for example, visualize the pipe dimensions or adjust the routing. Secondly, an Excel table (&quot;Result Output&quot;) is generated, displaying the network parameters, statistics, and load profile.</string>
+                </property>
                 <property name="text">
                  <string>Set directories for the net GIS file and the result excel file</string>
                 </property>
@@ -1562,7 +1577,7 @@ p, li { white-space: pre-wrap; }
                 <property name="maximumSize">
                  <size>
                   <width>16777215</width>
-                  <height>42</height>
+                  <height>45</height>
                  </size>
                 </property>
                 <property name="frameShape">
@@ -1573,7 +1588,8 @@ p, li { white-space: pre-wrap; }
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'MS Shell Dlg 2'; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Select whether all buildings or only those located in a polygon should be taken into account by toggling the checkbox.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Select whether all buildings or only those located in an area/polygon should be taken into account by toggling the checkbox and selecting a polygon file.&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                 </property>
                </widget>
               </item>
@@ -1638,7 +1654,7 @@ p, li { white-space: pre-wrap; }
                    </size>
                   </property>
                   <property name="text">
-                   <string>Polygon</string>
+                   <string>Area</string>
                   </property>
                   <property name="alignment">
                    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -1833,6 +1849,9 @@ p, li { white-space: pre-wrap; }
                   <pointsize>10</pointsize>
                  </font>
                 </property>
+                <property name="toolTip">
+                 <string>The design is carried out for a district heating system within a specific temperature range. Anergy / LowEx networks and high-temperature / Steam networks are not designed, so for the flow temperature range only values between 60 and 90 degrees Celsius can be selected. The return temperature must then of course be selected in the corresponding range.</string>
+                </property>
                 <property name="text">
                  <string>return temperature:</string>
                 </property>
@@ -1878,7 +1897,7 @@ p, li { white-space: pre-wrap; }
                  <bool>false</bool>
                 </property>
                 <property name="toolTip">
-                 <string comment="Test" extracomment="Test"/>
+                 <string comment="Test" extracomment="Test">The design is carried out for a district heating system within a specific temperature range. Anergy / LowEx networks and high-temperature / Steam networks are not designed, so for the flow temperature range only values between 60 and 90 degrees Celsius can be selected. The return temperature must then of course be selected in the corresponding range.</string>
                 </property>
                 <property name="text">
                  <string>supply temperature:</string>
@@ -1901,6 +1920,9 @@ p, li { white-space: pre-wrap; }
                   <width>80</width>
                   <height>16777215</height>
                  </size>
+                </property>
+                <property name="toolTip">
+                 <string>The design is carried out for a district heating system within a specific temperature range. Anergy / LowEx networks and high-temperature / Steam networks are not designed, so for the flow temperature range only values between 60 and 90 degrees Celsius can be selected. The return temperature must then of course be selected in the corresponding range.</string>
                 </property>
                 <property name="layoutDirection">
                  <enum>Qt::LeftToRight</enum>
@@ -1932,6 +1954,9 @@ p, li { white-space: pre-wrap; }
                   <width>80</width>
                   <height>16777215</height>
                  </size>
+                </property>
+                <property name="toolTip">
+                 <string>The design is carried out for a district heating system within a specific temperature range. Anergy / LowEx networks and high-temperature / Steam networks are not designed, so for the flow temperature range only values between 60 and 90 degrees Celsius can be selected. The return temperature must then of course be selected in the corresponding range.</string>
                 </property>
                 <property name="minimum">
                  <double>40.000000000000000</double>
