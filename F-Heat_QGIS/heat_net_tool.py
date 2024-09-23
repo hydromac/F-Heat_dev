@@ -34,6 +34,7 @@ from .heat_net_tool_dialog import HeatNetToolDialog
 import os.path
 import subprocess
 import sys
+import re
 from pathlib import Path
 
 try:
@@ -211,7 +212,7 @@ class HeatNetTool:
         None
         '''
         # feedback
-        self.dlg.intro_label.setText('Starting Installation...')
+        self.dlg.intro_label.setText('Starting Installation. Check cmd for progress.')
         self.dlg.intro_label.setStyleSheet("color: orange")
         self.dlg.intro_label.repaint()
 
@@ -247,8 +248,8 @@ class HeatNetTool:
             subprocess.check_call(["cmd", "/K"] + cmd)  # /K ceeps window open
         except subprocess.CalledProcessError as e:
             # feedback
-            self.dlg.intro_label.setText(f"Process finished or aborted: {e}")
-            self.dlg.intro_label.setStyleSheet("color: black")
+            self.dlg.intro_label.setText(f"Process finished or aborted.")
+            self.dlg.intro_label.setStyleSheet("color: white")
             self.dlg.intro_label.repaint()
 
         # Import all packages
@@ -321,6 +322,7 @@ class HeatNetTool:
         '''
         # Get the name of the selected layer from the ComboBox
         selected_layer_name = combobox.currentText()
+        selected_layer_name = re.sub(r'\s*\[.*?\]', '', selected_layer_name).strip()
 
         # Find the layer in the project
         layers = QgsProject.instance().mapLayersByName(selected_layer_name)
@@ -436,6 +438,14 @@ class HeatNetTool:
         
         if style == 'parcels':
             style_path = self.plugin_dir + '/layerstyles/parcels.qml'
+            layer.loadNamedStyle(style_path)
+
+        if style == 'buildings_adj':
+            style_path = self.plugin_dir + '/layerstyles/buildings_adj.qml'
+            layer.loadNamedStyle(style_path)
+
+        if style == 'streets_adj':
+            style_path = self.plugin_dir + '/layerstyles/streets_adj.qml'
             layer.loadNamedStyle(style_path)
 
     def load_download_options(self):
@@ -571,7 +581,10 @@ class HeatNetTool:
         None
         '''
         # Get the current layer name selected in the specified combobox
-        layer_name = getattr(self.dlg, combobox_in).currentText()
+        layer_name_with_epsg = getattr(self.dlg, combobox_in).currentText()
+
+        # Use a regular expression to strip out the EPSG code (or anything in brackets)
+        layer_name = re.sub(r'\s*\[.*?\]', '', layer_name_with_epsg).strip()
 
         layers = self.get_all_loaded_layers()
 
@@ -750,7 +763,7 @@ class HeatNetTool:
         
         # update progressBar
         self.dlg.load_progressBar.setValue(100)
-        self.dlg.load_label_feedback.setStyleSheet("color: green")
+        self.dlg.load_label_feedback.setStyleSheet("color: rgb(0, 255, 0)")
         self.dlg.load_label_feedback.setText('Download complete!')
 
     def adjust_files(self):
@@ -817,7 +830,7 @@ class HeatNetTool:
         streets_path, streets_layer_name, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_streets)
         buildings_path, buildings_layer_name, buildings_layer_obj = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_buildings)
         parcels_path, parcels_layer_name, parcels_layer_obj  = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_parcels)
-        
+        print(parcels_path)
         # update progressBar
         self.dlg.adjust_progressBar.setValue(5)
 
@@ -828,7 +841,7 @@ class HeatNetTool:
         # test if buildings already have been adjusted
         if 'Lastprofil' in buildings.gdf.columns:
             self.dlg.adjust_progressBar.setValue(100) # update progressBar
-            self.dlg.adjust_label_feedback.setStyleSheet("color: green")
+            self.dlg.adjust_label_feedback.setStyleSheet("color: rgb(0, 255, 0)")
             self.dlg.adjust_label_feedback.setText('Buildings already adjusted!')
         else:
             buildings.gdf = buildings.gdf[buildings.gdf[heat_att]>0].reset_index(drop=True) # only buildings with heat demand
@@ -868,8 +881,8 @@ class HeatNetTool:
 
             # check if files are overwritten or newly created
             if self.dlg.adjust_radioButton_new.isChecked():
-                self.add_shapefile_to_project(streets_path, group_name='Adjusted Files')
-                self.add_shapefile_to_project(buildings_path, group_name='Adjusted Files')
+                self.add_shapefile_to_project(streets_path, style='streets_adj', group_name='Adjusted Files')
+                self.add_shapefile_to_project(buildings_path, style='buildings_adj', group_name='Adjusted Files')
             else:
                 QgsProject.instance().removeMapLayer(buildings_layer_obj)
                 QgsProject.instance().removeMapLayer(streets_layer_obj)
@@ -878,7 +891,7 @@ class HeatNetTool:
             
             self.dlg.adjust_progressBar.setValue(100) # update progressBar
 
-            self.dlg.adjust_label_feedback.setStyleSheet("color: green")
+            self.dlg.adjust_label_feedback.setStyleSheet("color: rgb(0, 255, 0)")
             self.dlg.adjust_label_feedback.setText('Completed!')
             self.dlg.adjust_label_feedback.repaint()
 
@@ -984,7 +997,7 @@ class HeatNetTool:
         self.dlg.status_progressBar.setValue(100) # update progressBar
 
         # feedback
-        self.dlg.status_label_response.setStyleSheet("color: green")
+        self.dlg.status_label_response.setStyleSheet("color: rgb(0, 255, 0)")
         self.dlg.status_label_response.setText('Completed!')
         self.dlg.status_label_response.repaint()
 
@@ -1206,7 +1219,7 @@ class HeatNetTool:
         self.dlg.net_progressBar.setValue(100)
         # feedback
         self.dlg.net_label_response.setText('Completed')
-        self.dlg.net_label_response.setStyleSheet("color: green")
+        self.dlg.net_label_response.setStyleSheet("color: rgb(0, 255, 0)")
         self.dlg.net_label_response.repaint()
 
     def create_result(self):
@@ -1468,7 +1481,7 @@ class HeatNetTool:
         self.dlg.net_progressBar.setValue(100)
         # feedback
         self.dlg.net_label_response.setText('Completed')
-        self.dlg.net_label_response.setStyleSheet("color: green")
+        self.dlg.net_label_response.setStyleSheet("color: rgb(0, 255, 0)")
         self.dlg.net_label_response.repaint()
 
     def run(self):
@@ -1562,7 +1575,7 @@ class HeatNetTool:
         self.create_layer_tree_structure()
 
         # updates when tab is changed
-        self.dlg.tabWidget.currentChanged.connect(self.tab_change)
+        #self.dlg.tabWidget.currentChanged.connect(self.tab_change)
 
         # update the download options
         self.dlg.load_comboBox_municipality.currentIndexChanged.connect(self.adapt_download_options)
