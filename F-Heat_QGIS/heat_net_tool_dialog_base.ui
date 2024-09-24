@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>564</width>
+    <width>587</width>
     <height>633</height>
    </rect>
   </property>
@@ -82,7 +82,7 @@ QTabWidget  &gt; QWidget &gt; QWidget  {
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>521</width>
+        <width>544</width>
         <height>838</height>
        </rect>
       </property>
@@ -143,6 +143,8 @@ QLineEdit {
     border: 1px solid rgb(29, 170, 172);
     border-radius: 5px;
     padding: 0px;
+	font-family: Arial;
+    font-size: 14px;
 }
 
 QPushButton {
@@ -218,7 +220,7 @@ QComboBox {
     background-color: rgb(255, 255, 255); /* Hintergrundfarbe */
     color: rgb(0, 0, 0); /* Textfarbe */
     font-family: Arial; /* Schriftart */
-    font-size: 10px; /* Schriftgröße */
+    font-size: 14px; /* Schriftgröße */
     border: 1px solid rgb(29, 170, 172); /* Rahmenfarbe */
     border-radius: 3px; /* Abgerundete Ecken */
     padding: 0px; /* Innenabstand */
@@ -860,7 +862,7 @@ p, li { white-space: pre-wrap; }
                  </sizepolicy>
                 </property>
                 <property name="allowEmptyLayer">
-                 <bool>true</bool>
+                 <bool>false</bool>
                 </property>
                 <property name="showCrs">
                  <bool>true</bool>
@@ -870,7 +872,7 @@ p, li { white-space: pre-wrap; }
               <item row="1" column="1">
                <widget class="QgsMapLayerComboBox" name="adjust_comboBox_parcels">
                 <property name="allowEmptyLayer">
-                 <bool>true</bool>
+                 <bool>false</bool>
                 </property>
                 <property name="showCrs">
                  <bool>true</bool>
@@ -880,7 +882,7 @@ p, li { white-space: pre-wrap; }
               <item row="2" column="1">
                <widget class="QgsMapLayerComboBox" name="adjust_comboBox_buildings">
                 <property name="allowEmptyLayer">
-                 <bool>true</bool>
+                 <bool>false</bool>
                 </property>
                 <property name="showCrs">
                  <bool>true</bool>
@@ -1385,7 +1387,7 @@ p, li { white-space: pre-wrap; }
               <item row="1" column="1" colspan="2">
                <widget class="QgsMapLayerComboBox" name="status_comboBox_streets">
                 <property name="allowEmptyLayer">
-                 <bool>true</bool>
+                 <bool>false</bool>
                 </property>
                 <property name="showCrs">
                  <bool>true</bool>
@@ -1395,7 +1397,7 @@ p, li { white-space: pre-wrap; }
               <item row="2" column="1" colspan="2">
                <widget class="QgsMapLayerComboBox" name="status_comboBox_parcels">
                 <property name="allowEmptyLayer">
-                 <bool>true</bool>
+                 <bool>false</bool>
                 </property>
                 <property name="showCrs">
                  <bool>true</bool>
@@ -1405,7 +1407,7 @@ p, li { white-space: pre-wrap; }
               <item row="3" column="1" colspan="2">
                <widget class="QgsMapLayerComboBox" name="status_comboBox_buildings">
                 <property name="allowEmptyLayer">
-                 <bool>true</bool>
+                 <bool>false</bool>
                 </property>
                 <property name="showCrs">
                  <bool>true</bool>
@@ -2281,7 +2283,7 @@ p, li { white-space: pre-wrap; }
                  </size>
                 </property>
                 <property name="allowEmptyLayer">
-                 <bool>true</bool>
+                 <bool>false</bool>
                 </property>
                 <property name="showCrs">
                  <bool>true</bool>
@@ -2297,7 +2299,7 @@ p, li { white-space: pre-wrap; }
                  </size>
                 </property>
                 <property name="allowEmptyLayer">
-                 <bool>true</bool>
+                 <bool>false</bool>
                 </property>
                 <property name="showCrs">
                  <bool>true</bool>
@@ -2313,7 +2315,7 @@ p, li { white-space: pre-wrap; }
                  </size>
                 </property>
                 <property name="allowEmptyLayer">
-                 <bool>true</bool>
+                 <bool>false</bool>
                 </property>
                 <property name="showCrs">
                  <bool>true</bool>
@@ -2428,6 +2430,12 @@ p, li { white-space: pre-wrap; }
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
+                  </property>
+                  <property name="allowEmptyLayer">
+                   <bool>false</bool>
+                  </property>
+                  <property name="showCrs">
+                   <bool>true</bool>
                   </property>
                  </widget>
                 </item>
