@@ -385,8 +385,11 @@ class LoadProfile:
             The modified demand dataframe with the added loss column.
         '''
         loss_sum = df['Verlust [MWh/a]'].max()
+        loss_extra_sum = df['Verlust bei extra Daemmung [MWh/a]'].max() # extra insulation
         loss_hourly = loss_sum/resolution
+        loss_extra_hourly = loss_extra_sum/resolution
         demand_df['Verlust'] = loss_hourly
+        demand_df['Verlust bei extra Dämmung'] = loss_extra_hourly
         return demand_df
     
     @staticmethod
@@ -408,20 +411,18 @@ class LoadProfile:
         df_with_sum['Summe aller Gebäudetypen'] = df.sum(axis=1)
         return df_with_sum
     
-    @staticmethod
-    def add_glf(df,glf):
-        '''
-        '''
-        glf = 1
-        df_glf = df.copy()
+    # @staticmethod
+    # def add_glf(df,glf):
+    #     glf = 1
+    #     df_glf = df.copy()
 
-        # Calculate the average load
-        avg_load = df_glf['Summe aller Gebäudetypen'].mean()
+    #     # Calculate the average load
+    #     avg_load = df_glf['Summe aller Gebäudetypen'].mean()
 
-        # Apply the formula to adjust the load profile with the coincidence factor
-        df_glf['Summe aller Gebäudetypen mit GLF'] = avg_load + (df_glf['Summe aller Gebäudetypen'] - avg_load) * glf
+    #     # Apply the formula to adjust the load profile with the coincidence factor
+    #     df_glf['Summe aller Gebäudetypen mit GLF'] = avg_load + (df_glf['Summe aller Gebäudetypen'] - avg_load) * glf
 
-        return df_glf
+    #     return df_glf
     
     @staticmethod
     def add_sum(df):
@@ -439,11 +440,13 @@ class LoadProfile:
             The modified dataframe with the total sum column.
         '''
         df_sum = df.copy()
-        df_sum['Gesamtsumme'] = df_sum['Summe aller Gebäudetypen mit GLF']+df_sum['Verlust']
+        # df_sum['Gesamtsumme'] = df_sum['Summe aller Gebäudetypen mit GLF']+df_sum['Verlust']
+        df_sum['Gesamtsumme'] = df_sum['Summe aller Gebäudetypen']+df_sum['Verlust']
+        df_sum['Gesamtsumme (extra Dämmung)'] = df_sum['Summe aller Gebäudetypen']+df_sum['Verlust bei extra Dämmung']
         return df_sum
     
     @staticmethod
-    def plot_bar_chart(dataframe, column_names, figsize=(18, 4), colors=['blue', 'orange'], filename='../Lastprofil.png'):
+    def plot_bar_chart(dataframe, column_names, figsize=(18, 4), colors=['blue', 'orange'], filename='../Lastprofil.png', ylabel='Wärmebedarf und Verlust [MW]', title='Wärmebedarf und Verlust pro Stunde im Jahr'):
         '''
         Plots a bar chart of specified columns in a dataframe.
 
@@ -469,13 +472,13 @@ class LoadProfile:
         fig.set_size_inches(figsize)
 
         plt.xlabel('Zeit [h]')
-        plt.ylabel('Wärmebedarf und Verlust [MW]')
-        plt.title('Wärmebedarf und Verlust pro Stunde im Jahr')
+        plt.ylabel(ylabel)
+        plt.title(title)
         plt.legend()
         plt.savefig(filename, bbox_inches='tight')
         plt.close(fig)
 
-    def safe_in_excel(self, df, col = 0, index_bool=False, sheet_option ='replace', sheet = 'Lastprofil'):
+    def save_in_excel(self, df, col = 0, index_bool=False, sheet_option ='replace', sheet = 'Lastprofil'):
         '''
         Saves the dataframe to the specified Excel file and sheet.
 

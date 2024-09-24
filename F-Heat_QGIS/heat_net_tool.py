@@ -1337,7 +1337,7 @@ class HeatNetTool:
             # load polygon as gdf
             if polygon_layer == None:
                 polygon = gpd.read_file(polygon_path)
-            else: 
+            else:
                 polygon = gpd.read_file(polygon_path, layer=polygon_layer)
 
             # only buildings within polygon
@@ -1349,6 +1349,10 @@ class HeatNetTool:
         ### result ###
         result_path = self.dlg.net_lineEdit_result.text()
         result = Result(result_path)
+
+        # copy result file to user path
+        costs_path = Path(self.plugin_dir) / 'data/costs.xlsx'
+        result.copy_excel_file(costs_path)
 
         result.create_data_dict(buildings.gdf, net_gdf, load_profiles, dn_list, heat_attribute, t_supply, t_return)
         result.create_df_from_dataDict(net_name = os.path.splitext(os.path.basename(net_path))[0])
@@ -1436,13 +1440,12 @@ class HeatNetTool:
         # add sum column for all buildings
         demand_with_sum_buildings = load_profile.add_sum_buildings(demand)
 
-        glf = result.data_dict['GLF'][0] # Gleichzeitigkeitsfaktor/coincident factor
-
         # add Gleichzeitigkeitsfaktor/coincident factor to demand
-        demand_glf = load_profile.add_glf(demand_with_sum_buildings,glf)
+        # glf = result.data_dict['GLF'][0] # Gleichzeitigkeitsfaktor/coincident factor
+        # demand_glf = load_profile.add_glf(demand_with_sum_buildings,glf)
 
         # add loss
-        demand_with_loss = load_profile.add_loss(demand_glf, load_profile.net_result, resolution)
+        demand_with_loss = load_profile.add_loss(demand_with_sum_buildings, load_profile.net_result, resolution)
         
         # add sum buildings+loss
         demand_with_sum = load_profile.add_sum(demand_with_loss)
@@ -1452,27 +1455,48 @@ class HeatNetTool:
 
         # plot and save fig
         load_profile.plot_bar_chart(demand_with_sum, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil.png')
-
-        # order
-        sorted_demand = demand_with_sum.sort_values(by='Gesamtsumme', ascending=False)
+        # update progressBar
+        self.dlg.net_progressBar.setValue(50)
+        load_profile.plot_bar_chart(demand_with_sum, column_names=['Gesamtsumme (extra Dämmung)', 'Verlust'], colors=['green','orange'], filename = self.project_dir+'/Lastprofil_extra_Daemmung.png', ylabel='Wärmebedarf und Verlust bei extra Dämmung [MW]', title='Wärmebedarf und Verlust bei extra Dämmung pro Stunde im Jahr')
 
         # update progressBar
         self.dlg.net_progressBar.setValue(60)
 
+        # order
+        sorted_demand = demand_with_sum.sort_values(by='Gesamtsumme', ascending=False)
+
         # plot and save fig
-        load_profile.plot_bar_chart(sorted_demand, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil_geordnet.png')
+        load_profile.plot_bar_chart(sorted_demand, column_names=['Gesamtsumme', 'Verlust'], filename = self.project_dir+'/Lastprofil_geordnet.png', title='Geordnetes Lastprofil')
+
+        # update progressBar
+        self.dlg.net_progressBar.setValue(70)
+
+        # order extra insulation
+        sorted_demand = demand_with_sum.sort_values(by='Gesamtsumme (extra Dämmung)', ascending=False)
+
+        # plot and save fig extra insulation
+        load_profile.plot_bar_chart(sorted_demand, column_names=['Gesamtsumme (extra Dämmung)', 'Verlust'], colors=['green','orange'], filename = self.project_dir+'/Lastprofil_extra_Daemmung_geordnet.png', ylabel='Wärmebedarf und Verlust bei extra Dämmung [MW]', title='Geordnetes Lastprofil (extra Dämmung)')
 
         # update progressBar
         self.dlg.net_progressBar.setValue(80)
 
+        # round columns of demand dataframe
+        demand_with_sum = demand_with_sum.round(decimals=3)
+
         # save demand profile in excel
-        load_profile.safe_in_excel(demand_with_sum, index_bool=True)
+        load_profile.save_in_excel(demand_with_sum, index_bool=True)
 
         # save load curve plot in excel
         load_profile.embed_image_in_excel(0,demand_with_sum.shape[1]+1, image_filename = self.project_dir+'/Lastprofil.png')
 
         # save sorted load curve plot in excel
-        load_profile.embed_image_in_excel(20,demand_with_sum.shape[1]+1, image_filename = self.project_dir+'/Lastprofil_geordnet.png')
+        load_profile.embed_image_in_excel(22,demand_with_sum.shape[1]+1, image_filename = self.project_dir+'/Lastprofil_geordnet.png')
+
+        # save load curve plot in excel extra insulation
+        load_profile.embed_image_in_excel(44,demand_with_sum.shape[1]+1, image_filename = self.project_dir+'/Lastprofil_extra_Daemmung.png')
+
+        # save sorted load curve plot in excel extra insulation
+        load_profile.embed_image_in_excel(66,demand_with_sum.shape[1]+1, image_filename = self.project_dir+'/Lastprofil_extra_Daemmung_geordnet.png')
 
         # open result
         load_profile.open_excel_file()

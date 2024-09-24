@@ -101,6 +101,7 @@ def calculate_diameter_velocity_loss(volumeflow, htemp, ltemp, length, pipe_info
         - DN (float): Nominal diameter.
         - velocity (float): Velocity in the pipeline.
         - loss (float): Heat loss.
+        - loss_extra (float): Heat loss with extra insulation.
     '''
     mtemp = (htemp+ltemp)/2
     K = mtemp - 10  # Outside Temp. = 10°C for underground installation 
@@ -122,13 +123,15 @@ def calculate_diameter_velocity_loss(volumeflow, htemp, ltemp, length, pipe_info
     d_i = pipe_info['di'].iloc[idx]
     DN = pipe_info['DN'].iloc[idx]
     u = pipe_info['U-Value'].iloc[idx]
+    u_plus = pipe_info['U-Value_extra_insulation'].iloc[idx]
 
     # calculate velocity and loss
     r = d_i / 2
     velocity = volumeflow * 1000 / (np.pi * pow(r, 2))  # dm^3/mm^2 --> Factor 1000
     
     loss = 8760 * 2 * (u * K * length) / 1000  # 8760 h/a, 2* --> supply and return
-    return DN, velocity, loss
+    loss_extra = 8760 * 2 * (u_plus * K * length) / 1000
+    return DN, velocity, loss, loss_extra
 
 class Streets:
     '''
@@ -646,7 +649,7 @@ class Net:
             GLF = calculate_GLF(n_building)
             power_GLF = power * GLF
             volumeflow = calculate_volumeflow(power_GLF, self.htemp, self.ltemp)
-            diameter, velocity, loss = calculate_diameter_velocity_loss(volumeflow, self.htemp, self.ltemp, length, pipe_info, edge_type)
+            diameter, velocity, loss, loss_extra = calculate_diameter_velocity_loss(volumeflow, self.htemp, self.ltemp, length, pipe_info, edge_type)
             
             # Add attributes to the edges
             data['GLF'] = GLF
@@ -655,6 +658,7 @@ class Net:
             data['DN'] = diameter
             data['velocity'] = velocity
             data['loss'] = loss
+            data['loss_extra_insulation'] = loss_extra
 
     def network_analysis(self, G, buildings, sources, pipe_info, power_att, weight='length', progressBar=None):
         '''
@@ -701,7 +705,7 @@ class Net:
                     self.update_attribute(u, v, power, 'power')    
                     self.update_attribute(u, v, buildings_count, 'n_building')
             except Exception as e: 
-                print(f'Nor connection for:\n{row}')
+                print(f'No connection for:\n{row}')
                 print(f'Error {e}')
                 #sys.exit()
             
@@ -841,29 +845,42 @@ class Result:
             Return temperature.
         '''
         # Helper function
-        def summarize_pipes(df,dn_list):
+        def summarize_pipes(df, dn_list):
             '''
-            Summarizes pipe lengths and losses in a DataFrame with all possible diameters.
+            Summarizes pipe lengths, losses, and the number of "Hausanschlüsse" per diameter (DN).
 
             Parameters
             ----------
             df : DataFrame
                 Input DataFrame.
             dn_list : list
-                List of all possible diameters.
+                List of all possible diameters (DN).
             '''
-            result = pd.DataFrame({'DN':dn_list}, index = dn_list)
+            # Drop rows where 'DN' is NaN
+            df = df.dropna(subset=['DN'])
+
+            # Initialize an empty DataFrame for the result
+            result = pd.DataFrame({'DN': dn_list}, index=dn_list)
+            result['Anzahl Hausanschluesse'] = 0
             result['Hausanschlusslaenge [m]'] = 0
             result['Trassenlaenge [m]'] = 0
             result['Verlust [MWh/a]'] = 0
-            df = df.dropna(subset=['DN'])
-            for idx, row in df.iterrows():
-                i = int(row['DN'])
-                if row['type'] == 'Hausanschluss':
-                    result.loc[i, 'Hausanschlusslaenge [m]'] += row['length']
+            result['Verlust bei extra Daemmung [MWh/a]'] = 0
+
+            # Group by DN and type
+            grouped = df.groupby(['DN', 'type'])
+
+            # Sum up the pipe lengths and losses, count the number of Hausanschlüsse
+            for (dn, pipe_type), group in grouped:
+                if pipe_type == 'Hausanschluss':
+                    result.loc[int(dn), 'Hausanschlusslaenge [m]'] += group['length'].sum()
+                    result.loc[int(dn), 'Anzahl Hausanschluesse'] += len(group)
                 else:
-                    result.loc[i, 'Trassenlaenge [m]'] += row['length']
-                result.loc[i, 'Verlust [MWh/a]'] += row['loss']
+                    result.loc[int(dn), 'Trassenlaenge [m]'] += group['length'].sum()
+
+                result.loc[int(dn), 'Verlust [MWh/a]'] += group['loss'].sum()
+                result.loc[int(dn), 'Verlust bei extra Daemmung [MWh/a]'] += group['loss_extra_insulation'].sum()
+
             return result
         
         # Accumulated building heat demand and count per load profile
@@ -891,6 +908,7 @@ class Result:
         gdf = net.copy()
         gdf['power_GLF']/=1000 #MW
         gdf['loss']/=1000 #MW
+        gdf['loss_extra_insulation']/=1000 #MW
 
         # Length and loss of all diameters in chronological order
         length_loss = summarize_pipes(gdf, dn_list)
@@ -900,9 +918,11 @@ class Result:
         data_dict['Anzahl'] = df_sorted['count'].tolist()
         data_dict['Waermebedarf [MWh/a]'] = df_sorted[heat_att].tolist()
         data_dict['DN'] = dn_list
+        data_dict['Anzahl Hausanschluesse'] = length_loss['Anzahl Hausanschluesse'].tolist()
         data_dict['Hausanschlusslaenge [m]'] = length_loss['Hausanschlusslaenge [m]'].tolist()
         data_dict['Trassenlaenge [m]'] = length_loss['Trassenlaenge [m]'].tolist()
         data_dict['Verlust [MWh/a]'] = length_loss['Verlust [MWh/a]'].tolist()
+        data_dict['Verlust bei extra Daemmung [MWh/a]'] = length_loss['Verlust bei extra Daemmung [MWh/a]'].tolist()
         data_dict['Vorlauftemp [°C]'] = [h_temp]
         data_dict['Ruecklauftemp [°C]'] = [l_temp]
         data_dict['Max. Leistung (inkl. GLF) [MW]'] = [gdf['power_GLF'].max()]
@@ -923,16 +943,16 @@ class Result:
         df = pd.DataFrame.from_dict(self.data_dict, orient='index').transpose()
 
         # Sum selected columns and write the sum in one row
-        sum_row = df[['Anzahl', 'Waermebedarf [MWh/a]', 'Max. Leistung (inkl. GLF) [MW]', 'Hausanschlusslaenge [m]', 'Trassenlaenge [m]', 'Verlust [MWh/a]']].sum()
+        sum_row = df[['Anzahl', 'Waermebedarf [MWh/a]', 'Max. Leistung (inkl. GLF) [MW]', 'Hausanschlusslaenge [m]', 'Trassenlaenge [m]', 'Verlust [MWh/a]', 'Verlust bei extra Daemmung [MWh/a]']].sum()
         sum_row['Lastprofil'] = 'Gesamt'
-        df_sum = pd.DataFrame([sum_row], columns=['Lastprofil', 'Anzahl', 'Waermebedarf [MWh/a]', 'Max. Leistung (inkl. GLF) [MW]', 'Hausanschlusslaenge [m]', 'Trassenlaenge [m]', 'Verlust [MWh/a]'], index=['Summe'])
+        df_sum = pd.DataFrame([sum_row], columns=['Lastprofil', 'Anzahl', 'Waermebedarf [MWh/a]', 'Max. Leistung (inkl. GLF) [MW]', 'Hausanschlusslaenge [m]', 'Trassenlaenge [m]', 'Verlust [MWh/a]', 'Verlust bei extra Daemmung [MWh/a]'], index=['Summe'])
 
         # Add the sum row to df
         df = pd.concat([df, df_sum])
 
         self.gdf = df
     
-    def save_in_excel(self, result_table, col = 0, index_bool=False, sheet_option ='replace', sheet = 'Zusammenfassung'):
+    def save_in_excel(self, result_table, col = 0, row = 0, index_bool=False, sheet_option ='replace', sheet = 'Zusammenfassung'):
         '''
         Saves the DataFrame to an Excel sheet.
 
@@ -949,15 +969,15 @@ class Result:
         '''
         # Check if the file exists
         if os.path.exists(self.path):
-            mode = 'a'  # # Append mode
+            mode = 'a'  # Append mode
             writer_args = {'if_sheet_exists': sheet_option}
         else:
-            mode = 'w'  # # Write mode, creates a new file
+            mode = 'w'  # Write mode, creates a new file
             writer_args = {}
 
         # Open the Excel file in the appropriate mode and write the DataFrame to the specified sheet
         with pd.ExcelWriter(self.path, engine='openpyxl', mode=mode, **writer_args) as writer:
-            result_table.to_excel(writer, sheet_name=sheet, index=index_bool, startcol=col)
+            result_table.to_excel(writer, sheet_name=sheet, index=index_bool, startcol=col, startrow=row)
         
         # Adjust column widths
         wb = load_workbook(filename = self.path)        
@@ -1003,3 +1023,20 @@ class Result:
             most_common_BAK_ALKIS=('BAK', lambda x: x.mode().iloc[0]) # most common age (Baualtersklasse) according to ALKIS parcels
         ).reset_index()
         return aggregated_stats
+    
+    def copy_excel_file(self, source_path):
+        """
+        Copies an Excel file from source to destination without modifying the content, format, or objects.
+
+        Parameters
+        ----------
+        source_path : str
+            The file path of the source Excel file.
+        destination_path : str
+            The file path where the Excel file should be saved.
+        """
+        # Load the workbook from the source file
+        workbook = load_workbook(source_path)
+
+        # Save the workbook to the new destination
+        workbook.save(self.path)
