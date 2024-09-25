@@ -17,10 +17,11 @@ The current database is based on open data sources that are freely accessible.
 - Shape files of the house perimeters with heat demand and street centre line (NRW): `OpenGeodata.NRW <https://opengeodata.nrw.de/produkte/umwelt_klima/klima/kwp/>`_
 - Shape files of the parcels: `WFS NRW <https://www.wfs.nrw.de/geobasis/wfs_nw_inspire-flurstuecke_alkis>`_
 - Velocity in the pipes adopted from Nussbaumer and Thalmann [1]_.
-- Internal diameter and U-values (average value from various manufacturer specifications):
+- Internal diameter and U-values (Values from various manufacturer specifications):
     - `Rehau <https://www.rehau.com/downloads/99896/rauthermex-rauvitherm-technische-information.pdf>`_
-    - `Enerpipe <https://www.enerpipe.de/typo3conf/ext/so_bp_base/Resources/Public/JavaScript/Dist/pdfjs/web/viewer.html?file=/fileadmin/daten/02_produkte/06_Rohre-und-Verbindungstechnik/Rohrsysteme_TI_821000100_04-2021_web.pdf#page=1>`_
     - `Isoplus <https://www.isoplus.de/fileadmin/data/downloads/documents/germany/products/Doppelrohr-8-Seiten_DEUTSCH_Web.pdf>`_
+    - `Logstor <https://www.logstor.com/media/7318/kingspan-logstor-product-catalogue-specifications-de-eur.pdf>`_
+    - `Logstor Calculator <http://calc.logstor.com/de/energitab/>`_
 
 .. TODO: Add RWT Jagdt table description
 
