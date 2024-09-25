@@ -825,12 +825,12 @@ class HeatNetTool:
         
         excel_path = self.plugin_dir+'/data/building_info.xlsx'
         excel_building_info = pd.read_excel(excel_path, sheet_name='database')
-        excel_building_demand = pd.read_excel(excel_path, sheet_name='Grunddaten_Gebaeude', nrows=13, usecols='A:D')
+        excel_building_demand_wg = pd.read_excel(excel_path, sheet_name='Grunddaten_Gebaeude', nrows=13, usecols='A:D')
 
         streets_path, streets_layer_name, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_streets)
         buildings_path, buildings_layer_name, buildings_layer_obj = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_buildings)
         parcels_path, parcels_layer_name, parcels_layer_obj  = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_parcels)
-        print(parcels_path)
+        
         # update progressBar
         self.dlg.adjust_progressBar.setValue(5)
 
@@ -860,7 +860,7 @@ class HeatNetTool:
             buildings.drop_unwanted()
             self.dlg.adjust_progressBar.setValue(70) # update progressBar
             buildings.add_power()
-            buildings.add_custom_heat_demand(excel_building_demand)
+            buildings.add_custom_heat_demand(excel_building_demand_wg, excel_building_info)
             buildings.add_connect_option()
 
             self.dlg.adjust_progressBar.setValue(80) # update progressBar

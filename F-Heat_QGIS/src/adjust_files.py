@@ -413,7 +413,7 @@ class Buildings_adj():
             })
         self.gdf = grouped_gdf
     
-    def add_custom_heat_demand(self, building_data):
+    def add_custom_heat_demand(self, wg_data, nwg_data):
         '''
         Adds custom heat demand data to the existing GeoDataFrame based on building characteristics.
 
@@ -435,10 +435,20 @@ class Buildings_adj():
         Other types are assigned NaN or handled as specified in the implementation.
         '''
         buildings = self.gdf
-        merged_df = buildings.merge(
-            building_data[['Baualtersklasse', 'Waerme_MFH kWh/m²·a', 'Waerme_EFH kWh/m²·a']],
+        # merge with wg_data
+        merge1 = buildings.merge(
+            wg_data[['Baualtersklasse', 'Waerme_MFH kWh/m²·a', 'Waerme_EFH kWh/m²·a']],
             left_on='BAK',
             right_on='Baualtersklasse',
+            how='left'
+        )
+
+        # merge with nwg_data
+        merge1['GFK_last_four'] = merge1['citygml_fu'].str[-4:]
+        merged_df = merge1.merge(
+            nwg_data[['Funktion', 'WVBRpEBF']],
+            left_on='GFK_last_four',
+            right_on='Funktion',
             how='left'
         )
 
@@ -449,10 +459,15 @@ class Buildings_adj():
             np.where(
                 merged_df['Lastprofil'] == 'EFH',
                 merged_df['Waerme_EFH kWh/m²·a'],
-                np.nan  # other logic for other cases
+                merged_df['WVBRpEBF']
             )
         )
-        merged_df.drop(columns=['Baualtersklasse', 'Waerme_MFH kWh/m²·a', 'Waerme_EFH kWh/m²·a'], inplace=True)
+        # try to delete unwanted columns
+        try:
+            merged_df.drop(columns=['Baualtersklasse', 'Waerme_MFH kWh/m²·a', 'Waerme_EFH kWh/m²·a', 'Funktion', 'WVBRpEBF'], inplace=True)
+        except:
+            pass
+        # calculate 'Waermebedarf'
         merged_df['Waermebedarf'] = merged_df['NF'] * merged_df['Spez_Waermebedarf']
         self.gdf = merged_df
 
