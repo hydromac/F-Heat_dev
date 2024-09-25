@@ -464,7 +464,7 @@ class Buildings_adj():
         )
         # try to delete unwanted columns
         try:
-            merged_df.drop(columns=['Baualtersklasse', 'Waerme_MFH kWh/m²·a', 'Waerme_EFH kWh/m²·a', 'Funktion', 'WVBRpEBF'], inplace=True)
+            merged_df.drop(columns=['Baualtersklasse', 'Waerme_MFH kWh/m²·a', 'Waerme_EFH kWh/m²·a', 'Funktion', 'WVBRpEBF', 'GFK_last_four'], inplace=True)
         except:
             pass
         # calculate 'Waermebedarf'
