@@ -415,24 +415,32 @@ class Buildings_adj():
     
     def add_custom_heat_demand(self, wg_data, nwg_data):
         '''
-        Adds custom heat demand data to the existing GeoDataFrame based on building characteristics.
+        Adds custom heat demand data to the existing GeoDataFrame based on building characteristics from two datasets.
 
-        This method merges the existing GeoDataFrame with the provided building data to assign specific heat demand values
-        based on the building type (e.g., MFH or EFH). The specific heat demand values are used to calculate the total heat demand
-        for each building. 
+        This method merges the existing GeoDataFrame with two external DataFrames (`wg_data` and `nwg_data`) to assign
+        specific heat demand values for each building type (e.g., MFH or EFH) or function. The specific heat demand 
+        values are used to calculate the total heat demand for each building.
 
         Parameters
         ----------
-        building_data : pd.DataFrame
+        wg_data : pd.DataFrame
             A DataFrame containing building-specific heat demand data. It must include the following columns:
             - 'Baualtersklasse': Building age class.
             - 'Waerme_MFH kWh/m²·a': Specific heat demand for multi-family houses (MFH) in kWh/m²·a.
             - 'Waerme_EFH kWh/m²·a': Specific heat demand for single-family houses (EFH) in kWh/m²·a.
-
+        
+        nwg_data : pd.DataFrame
+            A DataFrame containing additional building data. It must include the following columns:
+            - 'Funktion': Function classification of the building.
+            - 'WVBRpEBF': Specific heat demand value based on the building function.
+        
         Notes
         -----
         The method assumes that 'Lastprofil' in the GeoDataFrame specifies the building type as either 'MFH' or 'EFH'.
-        Other types are assigned NaN or handled as specified in the implementation.
+        Buildings not classified as 'MFH' or 'EFH' will receive their heat demand value from the 'WVBRpEBF' column in 
+        `nwg_data`. If 'WVBRpEBF' is not available, the resulting demand will be NaN.
+
+        The total heat demand is calculated by multiplying the net floor area ('NF') by the assigned specific heat demand.
         '''
         buildings = self.gdf
         # merge with wg_data
@@ -474,6 +482,39 @@ class Buildings_adj():
     def add_connect_option(self):
         buildings = self.gdf
         buildings['Anschluss'] = 1
+
+    def rename_and_order_columns(self):
+        '''renames and order the columns of the buildings data frame.'''
+        old_df = self.gdf
+
+        buildings = pd.DataFrame({
+            'new_ID': old_df['new_ID'],
+            'Anschluss': old_df['Anschluss'],
+            'Funktion': old_df['citygml_fu'],
+            'Nutzung': old_df['Nutzung'],
+            'typ': old_df['type'],
+            'NF [m²]': old_df['NF'],
+            'RW_spez [kWh/a*m²]': old_df['RW_spez'],
+            'RW [kWh/a]': old_df['RW'],
+            'WW_spez [kWh/a*m²]': old_df['WW_spez'],
+            'WW [kWh/a]': old_df['WW'],
+            'RW_WW_spez [kWh/a*m²]': old_df['RW_WW_spez'],
+            'RW_WW [kWh/a]': old_df['RW_WW'],
+            'Leistung_th [kW]': old_df['power_th'],
+            'Vlh [h]': old_df['Vlh'],
+            'Lastprofil': old_df['Lastprofil'],
+            'Alter_LANUV': old_df['age_LANUV'],
+            'Alter_Flurstueck': old_df['validFrom'].str[:4],
+            'BAK nach Flurstueck': old_df['BAK'],
+            'Spez_WB [kWh/a*m²]': old_df['Spez_Waermebedarf'],
+            'WB [kWh/a]': old_df['Waermebedarf'],
+            'geometry': old_df['geometry']
+        })
+
+        # change into geodataframe
+        buildings = gpd.GeoDataFrame(buildings, geometry='geometry', crs=old_df.crs)
+
+        self.gdf = buildings
 
 class Parcels_adj():
     '''

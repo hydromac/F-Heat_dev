@@ -366,6 +366,8 @@ class Graph:
     ----------
     graph : nx.Graph
         A NetworkX graph representing the street network.
+    crs : string
+        coordinate reference system 
 
     Methods
     -------
@@ -388,11 +390,12 @@ class Graph:
     save_nodes_to_shapefile(filename):
         Saves the graph nodes as points in a shapefile, with node degree and coordinates annotated.
     '''
-    def __init__(self):
+    def __init__(self, crs):
         '''
         Initializes the Graph class with an empty NetworkX graph.
         '''
         self.graph = nx.Graph()
+        self.crs = crs
         
     def create_street_network(self, streets):
         '''
@@ -459,7 +462,7 @@ class Graph:
         '''
         for node1, node2 in self.graph.edges():
             geom = LineString([node1, node2])
-            self.graph.edges[node1, node2]['length'] = geom.length
+            self.graph.edges[node1, node2]['length [m]'] = geom.length
 
     def plot_G(self):
         '''
@@ -551,7 +554,7 @@ class Graph:
                 else:
                     attributes[key] = [value]
 
-        self.gdf = gpd.GeoDataFrame(attributes, geometry=geometries, crs='EPSG:25832')
+        self.gdf = gpd.GeoDataFrame(attributes, geometry=geometries, crs=self.crs)
 
     def save_nodes_to_shapefile(self, filename):
         """
@@ -570,8 +573,7 @@ class Graph:
             nodes_data['x_coord'].append(node[0])
             nodes_data['y_coord'].append(node[1])
 
-        nodes_gdf = gpd.GeoDataFrame(nodes_data, crs='EPSG:25832')
-        nodes_gdf.crs= 'EPSG:25832'
+        nodes_gdf = gpd.GeoDataFrame(nodes_data, crs=self.crs)
         nodes_gdf.to_file(filename,driver='GPKG')
 
 class Net:
@@ -586,6 +588,8 @@ class Net:
         Supply temperature.
     ltemp : float
         Return temperature.
+    crs : string
+        coordinate reference system
 
     Methods
     -------
@@ -595,23 +599,22 @@ class Net:
         Adds attributes to the network edges such as GLF, power_GLF, volumeflow, DN, velocity, and loss.
     network_analysis(G, buildings, sources, pipe_info, power_att, weight='length', progressBar=None):
         Calculates the network by finding the shortest path to each building.
-    network_analysis_hz(G, buildings, sources, polygons, hz, pipe_info, power_att, weight='length'):
-        Calculates the combined network of heating centers.
     plot_network(streets, buildings, sources, filename, title='Street network and calculated network'):
         Plots the street network, buildings, and calculated network, and saves the image.
     ensure_power_attribute():
         Ensures that each edge in the graph has the 'power' attribute.
-    graph_to_gdf(crs='EPSG:25832'):
+    graph_to_gdf():
         Converts a NetworkX graph to a GeoDataFrame, including edge attributes.
     '''
 
-    def __init__(self, htemp, ltemp):
+    def __init__(self, htemp, ltemp, crs):
         '''
         Initializes the Net class with an empty NetworkX graph, supply temperature, and return temperature.
         '''
         self.net = nx.Graph()
         self.htemp = htemp
         self.ltemp = ltemp
+        self.crs = crs
 
     def update_attribute(self, u, v, attribute, name):
         '''
@@ -642,8 +645,8 @@ class Net:
         '''
         for (u, v, data) in self.net.edges(data=True):
             n_building = data['n_building']
-            power = data['power']
-            length = data['length']
+            power = data['power [kW]']
+            length = data['length [m]']
             edge_type = data.get('type', None)
 
             GLF = calculate_GLF(n_building)
@@ -653,14 +656,14 @@ class Net:
             
             # Add attributes to the edges
             data['GLF'] = GLF
-            data['power_GLF'] = power_GLF
-            data['Volumeflow'] = volumeflow
-            data['DN'] = diameter
-            data['velocity'] = velocity
-            data['loss'] = loss
-            data['loss_extra_insulation'] = loss_extra
+            data['power_GLF [kW]'] = power_GLF
+            data['Volumeflow [l/s]'] = volumeflow
+            data['DN [mm]'] = diameter
+            data['velocity [m/s]'] = velocity
+            data['loss [kWh/a]'] = loss
+            data['loss_extra_insulation [kWh/a]'] = loss_extra
 
-    def network_analysis(self, G, buildings, sources, pipe_info, power_att, weight='length', progressBar=None):
+    def network_analysis(self, G, buildings, sources, pipe_info, power_att, weight='length [m]', progressBar=None):
         '''
         Calculates the network by finding the shortest path to each building.
 
@@ -677,7 +680,7 @@ class Net:
         power_att : str
             Attribute name for power in the buildings GeoDataFrame.
         weight : str, optional
-            Edge weight attribute for shortest path calculation (default is 'length').
+            Edge weight attribute for shortest path calculation (default is 'length [m]').
         progressBar : callable, optional
             Progress bar function (default is None).
         '''
@@ -702,7 +705,7 @@ class Net:
                     self.net.add_edge(u, v, **G.edges[u, v])
 
                     # Update attributes
-                    self.update_attribute(u, v, power, 'power')    
+                    self.update_attribute(u, v, power, 'power [kW]')    
                     self.update_attribute(u, v, buildings_count, 'n_building')
             except Exception as e: 
                 print(f'No connection for:\n{row}')
@@ -763,17 +766,12 @@ class Net:
         If an edge does not have the attribute, it is initialized with a value of 0.
         """
         for u, v in self.net.edges():
-            if 'power' not in self.net[u][v]:
-                self.net[u][v]['power'] = 0
+            if 'power [kW]' not in self.net[u][v]:
+                self.net[u][v]['power [kW]'] = 0
 
-    def graph_to_gdf(self, crs = 'EPSG:25832'):
+    def graph_to_gdf(self):
         '''
         Converts a NetworkX graph to a GeoDataFrame, including edge attributes.
-
-        Parameters
-        ----------
-        crs : str, optional
-            Coordinate reference system (default is 'EPSG:25832').
         '''
         geometries = []
         attributes = {}
@@ -789,7 +787,7 @@ class Net:
                     attributes[key] = [value]
 
         # Create a GeoDataFrame from LineString objects and attributes
-        self.gdf = gpd.GeoDataFrame(attributes, geometry=geometries, crs=crs)
+        self.gdf = gpd.GeoDataFrame(attributes, geometry=geometries, crs=self.crs)
 
 class Result:
     '''
@@ -857,10 +855,10 @@ class Result:
                 List of all possible diameters (DN).
             '''
             # Drop rows where 'DN' is NaN
-            df = df.dropna(subset=['DN'])
+            df = df.dropna(subset=['DN [mm]'])
 
             # Initialize an empty DataFrame for the result
-            result = pd.DataFrame({'DN': dn_list}, index=dn_list)
+            result = pd.DataFrame({'DN [mm]': dn_list}, index=dn_list)
             result['Anzahl Hausanschluesse'] = 0
             result['Hausanschlusslaenge [m]'] = 0
             result['Trassenlaenge [m]'] = 0
@@ -868,18 +866,18 @@ class Result:
             result['Verlust bei extra Daemmung [MWh/a]'] = 0
 
             # Group by DN and type
-            grouped = df.groupby(['DN', 'type'])
+            grouped = df.groupby(['DN [mm]', 'type'])
 
             # Sum up the pipe lengths and losses, count the number of Hausanschlüsse
             for (dn, pipe_type), group in grouped:
                 if pipe_type == 'Hausanschluss':
-                    result.loc[int(dn), 'Hausanschlusslaenge [m]'] += group['length'].sum()
+                    result.loc[int(dn), 'Hausanschlusslaenge [m]'] += group['length [m]'].sum()
                     result.loc[int(dn), 'Anzahl Hausanschluesse'] += len(group)
                 else:
-                    result.loc[int(dn), 'Trassenlaenge [m]'] += group['length'].sum()
+                    result.loc[int(dn), 'Trassenlaenge [m]'] += group['length [m]'].sum()
 
-                result.loc[int(dn), 'Verlust [MWh/a]'] += group['loss'].sum()
-                result.loc[int(dn), 'Verlust bei extra Daemmung [MWh/a]'] += group['loss_extra_insulation'].sum()
+                result.loc[int(dn), 'Verlust [MWh/a]'] += group['loss [MWh/a]'].sum()
+                result.loc[int(dn), 'Verlust bei extra Daemmung [MWh/a]'] += group['loss_extra_insulation [MWh/a]'].sum()
 
             return result
         
@@ -906,9 +904,9 @@ class Result:
 
         # kW in MW
         gdf = net.copy()
-        gdf['power_GLF']/=1000 #MW
-        gdf['loss']/=1000 #MW
-        gdf['loss_extra_insulation']/=1000 #MW
+        gdf['power_GLF [MW]'] = gdf['power_GLF [kW]']/1000 
+        gdf['loss [MWh/a]'] = gdf['loss [kWh/a]']/1000 
+        gdf['loss_extra_insulation [MWh/a]'] = gdf['loss_extra_insulation [kWh/a]']/1000 
 
         # Length and loss of all diameters in chronological order
         length_loss = summarize_pipes(gdf, dn_list)
@@ -917,7 +915,7 @@ class Result:
         data_dict['Lastprofil'] = types
         data_dict['Anzahl'] = df_sorted['count'].tolist()
         data_dict['Waermebedarf [MWh/a]'] = df_sorted[heat_att].tolist()
-        data_dict['DN'] = dn_list
+        data_dict['DN [mm]'] = dn_list
         data_dict['Anzahl Hausanschluesse'] = length_loss['Anzahl Hausanschluesse'].tolist()
         data_dict['Hausanschlusslaenge [m]'] = length_loss['Hausanschlusslaenge [m]'].tolist()
         data_dict['Trassenlaenge [m]'] = length_loss['Trassenlaenge [m]'].tolist()
@@ -925,7 +923,7 @@ class Result:
         data_dict['Verlust bei extra Daemmung [MWh/a]'] = length_loss['Verlust bei extra Daemmung [MWh/a]'].tolist()
         data_dict['Vorlauftemp [°C]'] = [h_temp]
         data_dict['Ruecklauftemp [°C]'] = [l_temp]
-        data_dict['Max. Leistung (inkl. GLF) [MW]'] = [gdf['power_GLF'].max()]
+        data_dict['Max. Leistung (inkl. GLF) [MW]'] = [gdf['power_GLF [MW]'].max()]
         data_dict['GLF'] = [calculate_GLF(sum(data_dict['Anzahl']))]
 
         self.data_dict = data_dict
@@ -1012,15 +1010,15 @@ class Result:
         aggregated_stats : DataFrame
             A DataFrame with aggregated statistics for each building type.
         '''
-        filtered_gdf = gdf[gdf['type'].apply(lambda x: ',' not in x)]
-        aggregated_stats = filtered_gdf.groupby('type').agg(
-            NF_median=('NF', 'median'),                # Median heated area
-            RW_spez_median=('RW_spez', 'median'),      # Median specific room heat
-            WW_spez_median=('WW_spez', 'median'),      # Median specific warm water
-            RW_WW_spez_median=('RW_WW_spez','median'), # Median combined heating
-            count=('type', 'size'),                    # Building count
-            most_common_age_LANUV=('age_LANUV', lambda x: x.mode().iloc[0]),  # most common age according to LANUV
-            most_common_BAK_ALKIS=('BAK', lambda x: x.mode().iloc[0]) # most common age (Baualtersklasse) according to ALKIS parcels
+        filtered_gdf = gdf[gdf['typ'].apply(lambda x: ',' not in x)]
+        aggregated_stats = filtered_gdf.groupby('typ').agg(
+            NF_median=('NF [m²]', 'median'),                # Median heated area
+            RW_spez_median=('RW_spez [kWh/a*m²]', 'median'),      # Median specific room heat
+            WW_spez_median=('WW_spez [kWh/a*m²]', 'median'),      # Median specific warm water
+            RW_WW_spez_median=('RW_WW_spez [kWh/a*m²]','median'), # Median combined heating
+            count=('typ', 'size'),                    # Building count
+            most_common_age_LANUV=('Alter_LANUV', lambda x: x.mode().iloc[0]),  # most common age according to LANUV
+            most_common_BAK_ALKIS=('BAK nach Flurstueck', lambda x: x.mode().iloc[0]) # most common age (Baualtersklasse) according to ALKIS parcels
         ).reset_index()
         return aggregated_stats
     

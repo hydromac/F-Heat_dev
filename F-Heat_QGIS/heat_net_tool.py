@@ -830,7 +830,7 @@ class HeatNetTool:
         streets_path, streets_layer_name, streets_layer_obj = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_streets)
         buildings_path, buildings_layer_name, buildings_layer_obj = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_buildings)
         parcels_path, parcels_layer_name, parcels_layer_obj  = self.get_layer_path_from_combobox(self.dlg.adjust_comboBox_parcels)
-        
+
         # update progressBar
         self.dlg.adjust_progressBar.setValue(5)
 
@@ -862,6 +862,7 @@ class HeatNetTool:
             buildings.add_power()
             buildings.add_custom_heat_demand(excel_building_demand_wg, excel_building_info)
             buildings.add_connect_option()
+            buildings.rename_and_order_columns()
 
             self.dlg.adjust_progressBar.setValue(80) # update progressBar
 
@@ -1156,7 +1157,7 @@ class HeatNetTool:
         self.dlg.net_progressBar.setValue(15)
 
         # Graph erstellen
-        graph = Graph()
+        graph = Graph(crs=buildings.gdf.crs)
         graph.create_street_network(streets.gdf)
         graph.connect_centroids(buildings.gdf)
         graph.connect_source(source.gdf)
@@ -1199,7 +1200,7 @@ class HeatNetTool:
 
 
         ### Net Analysis ###
-        net = Net(t_supply,t_return)
+        net = Net(t_supply,t_return,crs=buildings.gdf.crs)
         net.network_analysis(graph.graph, buildings.gdf, source.gdf, pipe_info, power_att=power_attribute, progressBar=self.dlg.net_progressBar)
 
         # update progressBar
@@ -1207,7 +1208,7 @@ class HeatNetTool:
 
         # GeoDataFrame from net
         net.ensure_power_attribute()
-        net.graph_to_gdf(crs = buildings.gdf.crs)
+        net.graph_to_gdf()
         
         # save net shape
         net.gdf.to_file(shape_path)

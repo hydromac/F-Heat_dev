@@ -63,7 +63,7 @@ class WLD:
         '''
         Adds a column for the length of each street segment to the streets GeoDataFrame.
         '''
-        self.streets['Länge'] = self.streets['geometry'].length
+        self.streets['Laenge [m]'] = self.streets['geometry'].length
 
     def add_heat_att(self,heat_att):
         '''
@@ -97,8 +97,8 @@ class WLD:
         heat_att : str
             The attribute in the streets GeoDataFrame representing heat consumption.
         '''
-        self.streets['HLD'] = np.where(
-            self.streets['Länge'] != 0, self.streets[f'{heat_att}'] / self.streets['Länge'], np.nan)
+        self.streets['HLD [kWh/a*m]'] = np.where(
+            self.streets['Laenge [m]'] != 0, self.streets[f'{heat_att}'] / self.streets['Laenge [m]'], np.nan)
         
 class Polygons:
     '''
@@ -141,7 +141,7 @@ class Polygons:
             Threshold value of heat line density (HLD).
         '''
         # Filter HLD for values > HLD_value
-        filtered_hld = self.hld[self.hld['HLD']>= HLD_value] 
+        filtered_hld = self.hld[self.hld['HLD [kWh/a*m]']>= HLD_value] 
 
         # Extract all connected building IDs from the 'connected' column
         connected_building_ids = [int(id) for sublist in filtered_hld['connected'].dropna().str.split(',').tolist() if isinstance(sublist, list) for id in sublist]
@@ -200,7 +200,7 @@ class Polygons:
             Distance of the buffer in meters.
         """
         # define crs
-        crs = self.parcels.crs
+        crs = self.buildings.crs
 
         # Buffer
         self.selected_parcels['geometry'] = self.selected_parcels.buffer(buffer_distance)
@@ -232,12 +232,12 @@ class Polygons:
         buildings = self.buildings[self.buildings[heat_attribute]>0] 
 
         # add area
-        self.polygons['Area'] = self.polygons['geometry'].area
+        self.polygons['Area [m²]'] = self.polygons['geometry'].area
 
         # add columns for attributes
         self.polygons['Connections'] = 0
-        self.polygons['Heat_Demand'] = 0.0
-        self.polygons['Power'] = 0.0
+        self.polygons['Heat_Demand [kWh]'] = 0.0
+        self.polygons['Power [kW]'] = 0.0
 
         for idx, polygon in self.polygons.iterrows():
             # buildings within polygon
@@ -247,13 +247,13 @@ class Polygons:
             self.polygons.loc[idx, 'Connections'] = len(contained_buildings)
 
             # cumulated heat demand
-            self.polygons.loc[idx, 'Heat_Demand'] = contained_buildings[heat_attribute].sum()
+            self.polygons.loc[idx, 'Heat_Demand [kWh]'] = contained_buildings[heat_attribute].sum()
             
             # accumulated power
-            self.polygons.loc[idx,'Power'] = contained_buildings[power_attribute].sum()
+            self.polygons.loc[idx,'Power [kW]'] = contained_buildings[power_attribute].sum()
         
         # heat deman per area 
-        self.polygons['Demand/Area[MWh/ha]'] = 10 * self.polygons['Heat_Demand'] / self.polygons['Area'] # 1000 kW 10000 m^2 in 1 MW 1 ha
+        self.polygons['Demand/Area[MWh/ha]'] = 10 * self.polygons['Heat_Demand [kWh]'] / self.polygons['Area [m²]'] # 1000 kW 10000 m^2 in 1 MW 1 ha
         
         # mean power
-        self.polygons['Mean_Power'] = self.polygons['Power'] / self.polygons['Connections']
+        self.polygons['Mean_Power [kW]'] = self.polygons['Power [kW]'] / self.polygons['Connections']
