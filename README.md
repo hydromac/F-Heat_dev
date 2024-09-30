@@ -1,7 +1,7 @@
-# Heat-Planning-Plugin-for-QGIS
+# F|Heat - Heat Planning Plugin for QGIS
 
 ## Description
-The Heat Planning Plugin for [QGIS](https://qgis.org/) enables functions like status analysis and heat network analysis for municipal heat planning. This plugin facilitates municipal heat planning by giving users access to various Python libraries within QGIS without the need for programming skills.
+The Heat Planning Plugin for [QGIS](https://qgis.org/) enables functions like status analysis and heat network analysis for municipal heat planning. This plugin facilitates municipal heat planning by giving users access to various Python libraries within QGIS without the need for programming skills. Parts of the plugin are currently tailored to NRW, Germany.
 
 ## Table of Contents
 1. [Features and Usage](#features-and-usage)
@@ -22,14 +22,23 @@ This tool simplifies the urban heat planning process by automating tasks such as
 * displaying suitable heat network areas and 
 * a potential network layout.
 
-The resulting network areas and routes (streets) can be customised and adjusted during the whole process. The process is about designating the planning region and is based on the [heat planning law](https://www.gesetze-im-internet.de/wpg/BJNR18A0B0023.html).
+The resulting network areas and routes (streets) can be customised and adjusted during the whole process. The process is about designating the planning region and is based on the [german heat planning law](https://www.gesetze-im-internet.de/wpg/BJNR18A0B0023.html).
 
 ## Quick-Start
 
-For QGIS users follow the following procedure:
-- step 1
-- step 2
-- ...
+If you do not have QGIS installed, you can download it from the official website: [qgis.org](https://qgis.org/download/)
+
+<img src="docs/images/readme/qs1.png" alt="quick start1" width="800">
+
+<img src="docs/images/readme/qs2.png" alt="quick start2" width="800">
+
+<img src="docs/images/readme/qs3.png" alt="quick start3" width="800">
+
+<img src="docs/images/readme/qs4.png" alt="quick start4" width="800">
+
+<img src="docs/images/readme/qs5.png" alt="quick start5" width="800">
+
+<img src="docs/images/readme/qs6.png" alt="quick start6" width="800">
 
 ## Installation
 To install F|Heat and use the functionalities without QGIS, ensure you have Python installed on your system. Follow the steps below:
