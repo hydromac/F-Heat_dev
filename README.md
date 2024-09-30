@@ -28,18 +28,25 @@ The resulting network areas and routes (streets) can be customised and adjusted 
 
 If you do not have QGIS installed, you can download it from the official website: [qgis.org](https://qgis.org/download/)
 
+Once you have installed QGIS open QGIS Desktop.
 <img src="docs/images/readme/qs0.png" alt="quick start0" width="800">
 
+Click on Plugins > Manage and Install Plugins...
 <img src="docs/images/readme/qs1.png" alt="quick start1" width="800">
 
+Select All, search for "FHeat" and install the Plugin.
 <img src="docs/images/readme/qs2.png" alt="quick start2" width="800">
 
+If the plugin toolbar is not visible, right click on an empty space on the tool bar and check the "Plugin Toolbar"-box.
 <img src="docs/images/readme/qs3.png" alt="quick start3" width="800">
 
+The F|Heat icon will then be visible in the plugin toolbar.
 <img src="docs/images/readme/qs4.png" alt="quick start4" width="800">
 
+It is advisable to save the project before starting F|Heat, as the plugin utilizes the project directory to save files.
 <img src="docs/images/readme/qs5.png" alt="quick start5" width="800">
 
+F|Heat starts by clicking the icon in the toolbar. From there, the plugin guides you through the process. Check the documentation for a detailed example.
 <img src="docs/images/readme/qs6.png" alt="quick start6" width="800">
 
 ## Installation
