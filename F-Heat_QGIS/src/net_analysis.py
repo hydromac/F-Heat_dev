@@ -689,8 +689,6 @@ class Net:
 
         for idx, row in buildings.iterrows():
             end_point = (row['centroid'].x, row['centroid'].y)
-            b1 = G.has_node(start_point)
-            b2 = G.has_node(end_point)
             power = row[power_att]
             buildings_count = 1
             try:
@@ -871,13 +869,13 @@ class Result:
             # Sum up the pipe lengths and losses, count the number of Hausanschlüsse
             for (dn, pipe_type), group in grouped:
                 if pipe_type == 'Hausanschluss':
-                    result.loc[int(dn), 'Hausanschlusslaenge [m]'] += group['length [m]'].sum()
-                    result.loc[int(dn), 'Anzahl Hausanschluesse'] += len(group)
+                    result.loc[dn, 'Hausanschlusslaenge [m]'] += group['length [m]'].sum()
+                    result.loc[dn, 'Anzahl Hausanschluesse'] += len(group)
                 else:
-                    result.loc[int(dn), 'Trassenlaenge [m]'] += group['length [m]'].sum()
+                    result.loc[dn, 'Trassenlaenge [m]'] += group['length [m]'].sum()
 
-                result.loc[int(dn), 'Verlust [MWh/a]'] += group['loss [MWh/a]'].sum()
-                result.loc[int(dn), 'Verlust bei extra Daemmung [MWh/a]'] += group['loss_extra_insulation [MWh/a]'].sum()
+                result.loc[dn, 'Verlust [MWh/a]'] += group['loss [MWh/a]'].sum()
+                result.loc[dn, 'Verlust bei extra Daemmung [MWh/a]'] += group['loss_extra_insulation [MWh/a]'].sum()
 
             return result
         
