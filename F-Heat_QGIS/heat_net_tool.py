@@ -21,10 +21,10 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QThread, pyqtSignal
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QFileDialog, QCompleter, QMessageBox
-from qgis.core import Qgis, QgsField, QgsProject, QgsMapLayer, QgsVectorLayer, QgsMessageLog, QgsLayerTreeLayer
+from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMessageBox
+from qgis.core import QgsProject, QgsMapLayer, QgsVectorLayer, QgsMessageLog, QgsLayerTreeLayer
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -41,7 +41,7 @@ try:
     import pandas as pd
     import geopandas as gpd
     from shapely import Point
-    from .src.download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs
+    from .src.download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs, clean_data, add_point, create_square, get_area_for_zensus
     from .src.adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
     from .src.status_analysis import WLD, Polygons
     from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
@@ -256,7 +256,7 @@ class HeatNetTool:
         import pandas as pd
         import geopandas as gpd
         from shapely import Point
-        from .src.download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs
+        from .src.download_files import file_list_from_URL, search_filename, read_file_from_zip, filter_df, get_shape_from_wfs, clean_data, add_point, create_square, get_area_for_zensus
         from .src.adjust_files import Streets_adj, Buildings_adj, Parcels_adj, spatial_join
         from .src.status_analysis import WLD, Polygons
         from .src.net_analysis import Streets, Source, Buildings, Graph, Net, Result, get_closest_point, calculate_GLF, calculate_volumeflow, calculate_diameter_velocity_loss
@@ -448,6 +448,10 @@ class HeatNetTool:
             style_path = self.plugin_dir + '/layerstyles/streets_adj.qml'
             layer.loadNamedStyle(style_path)
 
+        if style == 'zensus':
+            style_path = self.plugin_dir + '/layerstyles/zensus.qml'
+            layer.loadNamedStyle(style_path)
+
     def load_download_options(self):
         '''
         Loads municipality and city names of NRW into comboBoxes.
@@ -613,7 +617,6 @@ class HeatNetTool:
         self.load_layers_to_combobox(self.dlg.net_comboBox_polygon)
 
     # Main Methods
-
     def download_files(self):
         '''
         Downloads and processes shapefiles for buildings, streets, and parcels for a selected city or municipality.
@@ -664,107 +667,232 @@ class HeatNetTool:
         # update progressBar
         self.dlg.load_progressBar.setValue(0)
 
-        # URLs
-        # buildings
-        url_buildings = 'https://www.opengeodata.nrw.de/produkte/umwelt_klima/klima/kwp/'
+        if self.dlg.load_lineEdit_buildings.text().strip() == "":
+            self.dlg.load_label_feedback.setText('Select a Directory')
 
-        # parcels
-        url_parcels = 'https://www.wfs.nrw.de/geobasis/wfs_nw_inspire-flurstuecke_alkis'
-        layer_parcels = 'cp:CadastralParcel'
+        elif self.dlg.load_lineEdit_streets.text().strip() == "":
+            self.dlg.load_label_feedback.setText('Select a Directory')
 
-        # get name from combo box
-        if self.dlg.load_radioButton_municipality.isChecked():
-            name = self.dlg.load_comboBox_municipality.currentText()
-            parameter = 'municipality'
-        elif self.dlg.load_radioButton_city.isChecked():
-            name = self.dlg.load_comboBox_city.currentText()
-            parameter = 'city'
+        elif self.dlg.load_lineEdit_parcels.text().strip() == "":
+            self.dlg.load_label_feedback.setText('Select a Directory')
+        
         else:
-            self.dlg.load_label_feedback.setText('please choose municipality or city')
-            return
-        
-        # update progressBar
-        self.dlg.load_progressBar.setValue(1)
-        
-        
-        # filter df for city/municipality name
-        filtered_df = filter_df(name, self.gemarkungen_df, parameter)
-        
-        # city/municipality keys
-        municipality_key = filtered_df['gmdschl'][0]
 
-        # update progressBar
-        self.dlg.load_progressBar.setValue(5)
-        self.dlg.load_label_feedback.setStyleSheet("color: orange")
-        self.dlg.load_label_feedback.setText('Downloading...')
-        self.dlg.load_label_feedback.repaint()
+            # URLs
+            # buildings
+            url_buildings = 'https://www.opengeodata.nrw.de/produkte/umwelt_klima/klima/kwp/'
 
-        # buildings shapes
-        all_buildings_files = file_list_from_URL(url_buildings+'index.json')
-        self.dlg.load_progressBar.setValue(10)
-        buildings_zip = search_filename(all_buildings_files, municipality_key)
-        self.dlg.load_progressBar.setValue(15)
-        buildings_file_pattern = f'WBM-NRW_{municipality_key}' # file pattern maybe has to be renamed, when changes on the website occur
-        buildings_gdf = read_file_from_zip(url_buildings, buildings_zip, buildings_file_pattern)
+            # parcels
+            url_parcels = 'https://www.wfs.nrw.de/geobasis/wfs_nw_inspire-flurstuecke_alkis'
+            layer_parcels = 'cp:CadastralParcel'
 
-        # update progressBar
-        self.dlg.load_progressBar.setValue(35)
+            # get name from combo box
+            if self.dlg.load_radioButton_municipality.isChecked():
+                name = self.dlg.load_comboBox_municipality.currentText()
+                parameter = 'municipality'
+            elif self.dlg.load_radioButton_city.isChecked():
+                name = self.dlg.load_comboBox_city.currentText()
+                parameter = 'city'
+            else:
+                self.dlg.load_label_feedback.setText('please choose city or district')
+                return
+            
+            # update progressBar
+            self.dlg.load_progressBar.setValue(1)
+            
+            
+            # filter df for city/municipality name
+            filtered_df = filter_df(name, self.gemarkungen_df, parameter)
+            
+            # city/municipality keys
+            municipality_key = filtered_df['gmdschl'][0]
 
-        # streets shapes
-        streets_file_pattern = f'WBM-NRW-Waermelinien_{municipality_key}' # file pattern maybe has to be renamed, when changes on the website occur
-        streets_gdf = read_file_from_zip(url_buildings, buildings_zip, streets_file_pattern)
+            # update progressBar
+            self.dlg.load_progressBar.setValue(5)
+            self.dlg.load_label_feedback.setStyleSheet("color: orange")
+            self.dlg.load_label_feedback.setText('Downloading...')
+            self.dlg.load_label_feedback.repaint()
 
-        # update progressBar
-        self.dlg.load_progressBar.setValue(55)
+            # buildings shapes
+            all_buildings_files = file_list_from_URL(url_buildings+'index.json')
+            self.dlg.load_progressBar.setValue(10)
+            buildings_zip = search_filename(all_buildings_files, municipality_key)
+            self.dlg.load_progressBar.setValue(15)
+            buildings_file_pattern = f'WBM-NRW_{municipality_key}' # file pattern maybe has to be renamed, when changes on the website occur
+            buildings_gdf = read_file_from_zip(url_buildings, buildings_zip, buildings_file_pattern)
 
-        # parcels
-        gdf_list_parcels=[] # if a whole municipality is selected filtered df consists of multiple cities which parcels will be saved in this list and later merged
-        for row  in filtered_df.itertuples():
-            bbox = row.bbox
-            key = row.schluessel
-            parcel_gdf_i, e = get_shape_from_wfs(url_parcels, key, bbox, layer_parcels)
-            if e == 1:
-                self.dlg.load_label_feedback.setText(f'Too many parcels for key: {key}!\nMax. 100.000 parcels can be downloaded at once\nparcels incomplete')
-            gdf_list_parcels.append(parcel_gdf_i)
-        parcels_gdf = pd.concat(gdf_list_parcels, ignore_index=True)
+            # update progressBar
+            self.dlg.load_progressBar.setValue(35)
 
-        # update progressBar
-        self.dlg.load_progressBar.setValue(90)
+            # streets shapes
+            streets_file_pattern = f'WBM-NRW-Waermelinien_{municipality_key}' # file pattern maybe has to be renamed, when changes on the website occur
+            streets_gdf = read_file_from_zip(url_buildings, buildings_zip, streets_file_pattern)
 
-        # buffer(0) can sometimes repair invalid geometries
-        buildings_gdf['geometry'] = buildings_gdf['geometry'].buffer(0)
-        parcels_gdf['geometry'] = parcels_gdf['geometry'].buffer(0)
+            # update progressBar
+            self.dlg.load_progressBar.setValue(55)
 
-        # The buildings and streets can only be downloaded at municipality level, if you only want one city, the 
-        # additional buildings are superfluous and only extend the calculation time of the following programs.
-        # Therefore, only buildings that are located on the parcels that are available at municipality level are retained
-        if parameter == 'city':
-            union = gpd.GeoDataFrame(geometry=[parcels_gdf.unary_union])
-            buildings_gdf = gpd.sjoin(buildings_gdf, union, predicate='intersects')
-            streets_gdf = gpd.sjoin(streets_gdf, union, predicate='intersects')
+            # parcels
+            gdf_list_parcels=[] # if a whole municipality is selected filtered df consists of multiple cities which parcels will be saved in this list and later merged
+            for row  in filtered_df.itertuples():
+                bbox = row.bbox
+                key = row.schluessel
+                parcel_gdf_i, e = get_shape_from_wfs(url_parcels, key, bbox, layer_parcels)
+                if e == 1:
+                    self.dlg.load_label_feedback.setText(f'Too many parcels for key: {key}!\nMax. 100.000 parcels can be downloaded at once\nparcels incomplete')
+                gdf_list_parcels.append(parcel_gdf_i)
+            parcels_gdf = pd.concat(gdf_list_parcels, ignore_index=True)
 
-        # update progressBar
-        self.dlg.load_progressBar.setValue(98)
+            # update progressBar
+            self.dlg.load_progressBar.setValue(90)
 
-        # path to save net shape file and results
-        buildings_path = self.dlg.load_lineEdit_buildings.text()
-        streets_path = self.dlg.load_lineEdit_streets.text()
-        parcels_path = self.dlg.load_lineEdit_parcels.text()
+            # buffer(0) can sometimes repair invalid geometries
+            buildings_gdf['geometry'] = buildings_gdf['geometry'].buffer(0)
+            parcels_gdf['geometry'] = parcels_gdf['geometry'].buffer(0)
 
-        # save shapes
-        buildings_gdf.to_file(buildings_path)
-        streets_gdf.to_file(streets_path)
-        parcels_gdf.to_file(parcels_path)
+            # The buildings and streets can only be downloaded at municipality level, if you only want one city, the 
+            # additional buildings are superfluous and only extend the calculation time of the following programs.
+            # Therefore, only buildings that are located on the parcels that are available at municipality level are retained
+            if parameter == 'city':
+                union = gpd.GeoDataFrame(geometry=[parcels_gdf.unary_union])
+                buildings_gdf = gpd.sjoin(buildings_gdf, union, predicate='intersects')
+                streets_gdf = gpd.sjoin(streets_gdf, union, predicate='intersects')
 
-        # load layers to project
-        self.add_shapefile_to_project(parcels_path, style = 'parcels', group_name='Basic Data')
-        self.add_shapefile_to_project(buildings_path, style = 'buildings', group_name='Basic Data')
-        self.add_shapefile_to_project(streets_path, style = 'streets', group_name='Basic Data')
-        
-        # update progressBar
-        self.dlg.load_progressBar.setValue(100)
-        self.dlg.load_label_feedback.setStyleSheet("color: rgb(0, 255, 0)")
-        self.dlg.load_label_feedback.setText('Download complete!')
+            # update progressBar
+            self.dlg.load_progressBar.setValue(98)
+
+            # path to save net shape file and results
+            buildings_path = self.dlg.load_lineEdit_buildings.text()
+            streets_path = self.dlg.load_lineEdit_streets.text()
+            parcels_path = self.dlg.load_lineEdit_parcels.text()
+
+            # save shapes
+            buildings_gdf.to_file(buildings_path)
+            streets_gdf.to_file(streets_path)
+            parcels_gdf.to_file(parcels_path)
+
+            # load layers to project
+            self.add_shapefile_to_project(parcels_path, style = 'parcels', group_name='Basic Data')
+            self.add_shapefile_to_project(buildings_path, style = 'buildings', group_name='Basic Data')
+            self.add_shapefile_to_project(streets_path, style = 'streets', group_name='Basic Data')
+            
+            # update progressBar
+            self.dlg.load_progressBar.setValue(100)
+            self.dlg.load_label_feedback.setStyleSheet("color: rgb(0, 255, 0)")
+            self.dlg.load_label_feedback.setText('Download complete!')
+
+    def download_zensus(self):
+
+        if self.dlg.load_lineEdit_zensus.text().strip() == "":
+            self.dlg.load_label_zensus.setText('Select a Directory')
+        else:
+
+            # get name from combo box
+            if self.dlg.load_radioButton_municipality.isChecked():
+                name = self.dlg.load_comboBox_municipality.currentText()
+                parameter = 'municipality'
+            elif self.dlg.load_radioButton_city.isChecked():
+                name = self.dlg.load_comboBox_city.currentText()
+                parameter = 'city'
+            else:
+                self.dlg.load_label_zensus.setText('please choose city or district')
+                return
+
+            self.dlg.load_label_zensus.setText('Loading...')
+            # update progressBar
+            self.dlg.load_progressBar_zensus.setValue(1)
+
+            ## get area from self.gemarkungen in epsg3035
+
+            # filter df for city/municipality name
+            filtered_df = filter_df(name, self.gemarkungen_df, parameter)
+
+            zensus_bbox, zensus_area = get_area_for_zensus(filtered_df)
+
+            xmin, ymin, xmax, ymax = zensus_bbox
+
+            # update progressBar
+            self.dlg.load_progressBar_zensus.setValue(5)
+            
+            ## load zensus data
+            url_zensus = 'https://www.zensus2022.de/static/Zensus_Veroeffentlichung/'
+
+            heizungsart_zip = 'Zensus2022_Heizungsart.zip'
+            energietraeger_zip = 'Zensus2022_Energietraeger.zip'
+
+            df_Heizungsart = read_file_from_zip(url_zensus, heizungsart_zip, 'Zensus2022_Heizungsart_100m-Gitter', '.csv')
+            # update progressBar
+            self.dlg.load_progressBar_zensus.setValue(20)
+            df_Energietraeger = read_file_from_zip(url_zensus, energietraeger_zip, 'Zensus2022_Energietraeger_100m-Gitter', '.csv')
+
+            # only data within bbox
+            df_Heizungsart = df_Heizungsart[(df_Heizungsart['X_MP_100m'] > xmin) & (df_Heizungsart['X_MP_100m'] < xmax) & (df_Heizungsart['Y_MP_100m'] > ymin) & (df_Heizungsart['Y_MP_100m'] < ymax)]
+            df_Energietraeger = df_Energietraeger[(df_Energietraeger['X_MP_100m'] > xmin) & (df_Energietraeger['X_MP_100m'] < xmax) & (df_Energietraeger['Y_MP_100m'] > ymin) & (df_Energietraeger['Y_MP_100m'] < ymax)]
+
+            # update progressBar
+            self.dlg.load_progressBar_zensus.setValue(40)
+
+            ### clean data
+            df_Heizungsart = clean_data(df_Heizungsart)
+
+            # update progressBar
+            self.dlg.load_progressBar_zensus.setValue(50)
+
+            df_Energietraeger = clean_data(df_Energietraeger)
+
+            # update progressBar
+            self.dlg.load_progressBar_zensus.setValue(60)
+
+            ### add points
+            df_Heizungsart = add_point(df_Heizungsart)
+
+            # update progressBar
+            self.dlg.load_progressBar_zensus.setValue(70)
+
+            df_Energietraeger = add_point(df_Energietraeger)
+
+            # update progressBar
+            self.dlg.load_progressBar_zensus.setValue(80)
+
+            # create GeoDataFrames
+            gdf_Heizungsart = gpd.GeoDataFrame(df_Heizungsart, geometry='point')
+            gdf_Energietraeger = gpd.GeoDataFrame(df_Energietraeger, geometry='point')
+
+            # set crs
+            gdf_Heizungsart.set_crs(epsg=3035, inplace=True)
+            gdf_Energietraeger.set_crs(epsg=3035, inplace=True)
+
+            # Spatial Join
+            gdf_combined = gpd.sjoin(gdf_Heizungsart, gdf_Energietraeger, how='inner', predicate='intersects')
+
+            # drop unwanted columns
+            gdf_combined = gdf_combined.drop(columns=['index_right', 'X_MP_100m_right', 'Y_MP_100m_right', 'Gitter_ID_100m'])
+
+            #gdf_combined_25832 = gdf_combined.to_crs(epsg=25832)
+
+            # add square geometry
+            gdf_combined['geometry'] = gdf_combined.apply(lambda row: create_square(row['point'], 100), axis=1)
+
+            # drop point column
+            shape = gdf_combined.drop(columns=['point'])
+
+            # Set the 'geometry' column as the active geometry column for the 'shape' object
+            shape = shape.set_geometry('geometry')
+
+            # Set the CRS for 'shape'
+            shape.set_crs(epsg=3035, inplace=True)
+
+            # get path from lineEdit
+            path = self.dlg.load_lineEdit_zensus.text()
+            
+            # save
+            shape.to_file(path)
+
+            self.add_shapefile_to_project(path, 'zensus')
+
+            # update progressBar
+            self.dlg.load_progressBar_zensus.setValue(100)
+            self.dlg.load_label_zensus.setStyleSheet("color: rgb(0, 255, 0)")
+            self.dlg.load_label_zensus.setText('Download complete!')
 
     def adjust_files(self):
         '''
@@ -1559,6 +1687,11 @@ class HeatNetTool:
             
             # Start Download Files 
             self.dlg.load_pushButton_start.clicked.connect(self.download_files)
+
+            # zensus
+            self.dlg.load_pushButton_zensus.clicked.connect(
+                lambda: self.select_output_file(self.project_dir, self.dlg.load_lineEdit_zensus,'*.gpkg;;*.shp'))
+            self.dlg.load_pushButton_start_zensus.clicked.connect(self.download_zensus)
 
             ### Adjust ###
 

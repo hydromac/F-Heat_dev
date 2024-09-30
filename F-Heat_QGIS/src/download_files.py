@@ -8,7 +8,8 @@ import urllib.request
 import os
 import shutil
 from owslib.wfs import WebFeatureService
-
+from shapely.geometry import Point, Polygon, box
+from shapely.ops import unary_union
     
 def file_list_from_URL(url):
     '''lists downloadable files from given URL
@@ -57,21 +58,21 @@ def search_filename(files, city_id):
         The name of the file that contains the city identifier, or 'Keine Datei gefunden'
         if no matching file is found.
     '''
-    file_name = 'No sata found'
+    file_name = 'No data found'
     for item in files:
         if str(city_id) in item['name']:
             file_name = item['name']
             break
     return file_name
 
-def read_file_from_zip(url, zipfile, file_pattern, encoding='utf-8'):
+def read_file_from_zip(url, zipfile, file_pattern, file_type='.shp', encoding='utf-8', delimiter = ';'):
     '''
-    Reads a file as a GeoDataFrame from a downloadable zip file.
+    Reads a file (GeoDataFrame for shapefiles or DataFrame for CSV) from a downloadable zip file.
 
-    This function downloads a zip file from a specified URL, extracts the contents,
-    searches for a file matching a given pattern, and reads the file as a GeoDataFrame.
-    The function assumes the file is a shapefile and handles extraction and cleanup
-    of temporary files.
+    This function downloads a zip file from a specified URL, extracts its contents,
+    searches for a file matching a given pattern and file type (e.g., '.shp', '.gpkg', or '.csv'),
+    and reads the file as either a GeoDataFrame (for spatial files) or a DataFrame (for CSV).
+    It handles the extraction of files and cleans up temporary files afterward.
 
     Parameters
     ----------
@@ -81,30 +82,32 @@ def read_file_from_zip(url, zipfile, file_pattern, encoding='utf-8'):
         The name of the zip file to be downloaded.
     file_pattern : str
         The pattern to search for in the file names within the zip file.
+    file_type : str, optional
+        The type of file to be read (e.g., '.shp', '.csv', '.gpkg'), by default '.shp'.
     encoding : str, optional
-        The encoding to use when reading the shapefile, by default 'utf-8'.
+        The encoding to use when reading the file, by default 'utf-8'.
 
     Returns
     -------
-    GeoDataFrame
-        A GeoDataFrame containing the data from the extracted shapefile.
+    GeoDataFrame or DataFrame
+        A GeoDataFrame if a shapefile or GeoPackage is found, or a DataFrame if a CSV is found.
 
     Examples
     --------
     >>> url = "http://example.com/files/"
     >>> zipfile = "data.zip"
     >>> file_pattern = "desired_file"
-    >>> data = read_file_from_zip(url, zipfile, file_pattern)
+    >>> data = read_file_from_zip(url, zipfile, file_pattern, file_type='.csv')
     >>> data.head()
-       column1  column2  geometry
-    0        1        2  POINT (1.00000 2.00000)
-    1        3        4  POINT (3.00000 4.00000)
+       column1  column2  column3
+    0        1        2        3
+    1        4        5        6
 
     Notes
     -----
-    The function assumes that the zip file contains shapefiles and that the desired file
-    matches the provided pattern and ends with '.shp'. Temporary files are extracted to
-    '/tmp/extracted_zip' and cleaned up after reading the shapefile.
+    - The function supports both spatial files (e.g., '.shp', '.gpkg') and CSV files.
+    - Temporary files are extracted to '/tmp/extracted_zip' and cleaned up after reading.
+    - The file type must be specified via the 'file_type' argument, which defaults to '.shp'.
     '''
     with urllib.request.urlopen(url + zipfile) as response:
         with ZipFile(BytesIO(response.read())) as my_zip_file:
@@ -119,12 +122,17 @@ def read_file_from_zip(url, zipfile, file_pattern, encoding='utf-8'):
             file_list = my_zip_file.namelist()
 
             matching_files = [file for file in file_list if 
-                                file_pattern in file and file.endswith('.shp')]
+                                file_pattern in file and file.endswith(file_type)]
 
             file = matching_files[0]
 
-            # Read the shapefile directly from the extracted directory
-            data = gpd.read_file(os.path.join(temp_dir, file), encoding=encoding)
+            # check file type
+            if file_type in ['.shp','.gpkg']:
+                # Read the shapefile directly from the extracted directory
+                data = gpd.read_file(os.path.join(temp_dir, file), encoding=encoding)
+            elif file_type == '.csv':
+                # Read csv as pd.Dataframe
+                data = pd.read_csv(os.path.join(temp_dir, file), encoding=encoding, delimiter = delimiter)
 
             # Clean up: Remove the temporary directory
             shutil.rmtree(temp_dir)
@@ -228,3 +236,95 @@ def get_shape_from_wfs(wfs_url, key, bbox, layer_name):
     # Select features based on the key
     selected_rows = gdf[gdf['nationalCadastralReference'].str.startswith(key)].reset_index(drop=True)
     return selected_rows, exception
+
+
+def clean_data(df):
+    '''
+    Cleans the DataFrame by replacing invalid characters.
+
+    This method replaces specific invalid characters in the given DataFrame with valid alternatives. 
+    The following replacements are made:
+    - '\x96' and '' are replaced with '-'.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame to clean.
+
+    Returns
+    -------
+    pd.DataFrame
+        The cleaned DataFrame with invalid characters replaced.
+    '''
+    df.replace({'\x96': '-', '': '-'}, regex=True, inplace=True)
+    return df
+
+def add_point(df):
+    '''
+    Adds a point geometry to the DataFrame based on X and Y coordinates.
+
+    This method creates a 'point' column in the DataFrame by generating Point geometries 
+    from the 'X_MP_100m' and 'Y_MP_100m' coordinate columns.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame containing the 'X_MP_100m' and 'Y_MP_100m' columns representing 
+        the X and Y coordinates of the points.
+
+    Returns
+    -------
+    pd.DataFrame
+        The DataFrame with an additional 'point' column containing the Point geometries.
+    '''
+    df['point'] = df.apply(lambda row: Point(row['X_MP_100m'], row['Y_MP_100m']), axis=1)
+    return df
+
+def create_square(point, size):
+    '''
+    Creates a square polygon around a given point with a specified size.
+
+    This method generates a square-shaped polygon centered on the provided point. 
+    The square's side length is determined by the size parameter, and the square is 
+    oriented parallel to the axes.
+
+    Parameters
+    ----------
+    point : shapely.geometry.Point
+        The central point around which the square will be created. It should have 'x' and 'y' coordinates.
+    size : float
+        The total side length of the square.
+
+    Returns
+    -------
+    shapely.geometry.Polygon
+        A square-shaped polygon centered around the input point.
+    '''
+    x, y = point.x, point.y
+    half_size = size / 2
+    return Polygon([
+        (x - half_size, y - half_size),
+        (x + half_size, y - half_size),
+        (x + half_size, y + half_size),
+        (x - half_size, y + half_size)
+    ])
+
+def get_area_for_zensus(df):
+    # Prüfe, ob die 'bbox'-Spalte existiert und konvertiere sie zu Polygonen
+    if 'bbox' in df.columns:
+        df['bbox'] = df['bbox'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
+        df['geometry'] = df['bbox'].apply(lambda bbox: box(*bbox))
+
+    # Erstelle ein GeoDataFrame mit der 'geometry'-Spalte
+    gdf = gpd.GeoDataFrame(df, geometry='geometry', crs='EPSG:25832')
+
+    # Transformation der Koordinaten in EPSG:3035
+    gdf_3035 = gdf.to_crs(epsg=3035)
+
+    # Berechne die geometrische Vereinigung aller Geometrien
+    combined_geometry = unary_union(gdf_3035['geometry'])
+
+    # Extrahiere die Bounding Box der vereinten Geometrie
+    overall_bbox = combined_geometry.bounds  # Dies liefert die Bounding Box als Tupel (minx, miny, maxx, maxy)
+
+    return overall_bbox, combined_geometry
