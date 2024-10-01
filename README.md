@@ -33,7 +33,7 @@ If you do not have QGIS installed, you can download it from the official website
 Once QGIS is installed, open QGIS Desktop.
 <img src="docs/images/readme/qs0.png" alt="quick start0" width="800">
 
-Click on Plugins > Manage and Install Plugins...
+Click on "Plugins" > "Manage and Install Plugins..."
 <img src="docs/images/readme/qs1.png" alt="quick start1" width="800">
 
 Select "All", search for "FHeat" and install the Plugin.
