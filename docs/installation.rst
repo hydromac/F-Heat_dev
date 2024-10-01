@@ -13,10 +13,10 @@ Follow the instructions for installation for installation.
 
 .. attention::
     Make sure to check the box for adding Python to PATH.
-.. figure:: images/python_to_path.png
-    :alt: fheat_logo.png
-    :width: 100 %
-    :align: center
+    .. figure:: images/python_to_path.png
+        :alt: fheat_logo.png
+        :width: 100 %
+        :align: center
 
 QGIS Installation
 -----------------
