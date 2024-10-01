@@ -43,7 +43,7 @@ If the plugin toolbar is not visible, right-click on an empty space in the toolb
 The plugin toolbar with the F|Heat icon will then become visible.
 <img src="docs/images/readme/qs4.png" alt="quick start4" width="800">
 
-It is advisable to save the project before starting F|Heat, as the plugin utilizes the project directory to save files.
+It is advisable to save the project before starting F|Heat, as the plugin utilizes the project directory to save files. The project can be saved by clicking the save icon or by selecting "Project" > "Save As...".
 <img src="docs/images/readme/qs5.png" alt="quick start5" width="800">
 
 F|Heat starts by clicking the icon in the toolbar. From there, the plugin guides you through the process. Check the documentation for a detailed example.
