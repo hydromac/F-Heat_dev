@@ -1,5 +1,7 @@
 # F|Heat - Heat Planning Plugin for QGIS
 
+<img src="docs/images/fheat_logo.png" alt="FHeat Logo" >
+
 ## Description
 The Heat Planning Plugin for [QGIS](https://qgis.org/) enables functions like status analysis and heat network analysis for municipal heat planning. This plugin facilitates municipal heat planning by giving users access to various Python libraries within QGIS without the need for programming skills. Parts of the plugin are currently tailored to NRW, Germany.
 
