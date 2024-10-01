@@ -20,7 +20,7 @@ Follow the instructions for installation for installation. If you want to instal
     Make sure to check the box for adding Python to PATH.
     .. figure:: images/python_to_path.png
     :alt: Python_to_path.png
-    :width: 100 %
+    :width: 50 %
     :align: center
 
 Plugin Installation
@@ -31,45 +31,49 @@ After installing Python and QGIS the plugin, as an extension of QGIS, has to be 
 #. Official extension from QGIS:
 
 Once QGIS is installed, open QGIS Desktop.
+.. figure:: images/fheat_logo.png
+    :alt: fheat_logo.png
+    :width: 30 %
+    :align: center
 .. figure:: images//readme/qs0.png
     :alt: qs0.png
-    :width: 100 %
+    :width: 50 %
     :align: center
 
 Click on "Plugins" > "Manage and Install Plugins..."
 .. figure:: images//readme/qs1.png
     :alt: qs1.png
-    :width: 100 %
+    :width: 50 %
     :align: center
 
 Select "All", search for "FHeat" and install the Plugin.
 .. figure:: images//readme/qs2.png
     :alt: qs2.png
-    :width: 100 %
+    :width: 50 %
     :align: center
 
 If the plugin toolbar is not visible, right-click on an empty space in the toolbar and check the "Plugin Toolbar" box.
 .. figure:: images//readme/qs3.png
     :alt: qs3.png
-    :width: 100 %
+    :width: 50 %
     :align: center
 
 The plugin toolbar with the F|Heat icon will then become visible.
 .. figure:: images//readme/qs4.png
     :alt: qs4.png
-    :width: 100 %
+    :width: 50 %
     :align: center
 
 It is advisable to save the project before starting F|Heat, as the plugin utilizes the project directory to save files. The project can be saved by clicking the save icon or by selecting "Project" > "Save As...".
 .. figure:: images//readme/qs5.png
     :alt: qs5.png
-    :width: 100 %
+    :width: 50 %
     :align: center
 
 F|Heat starts by clicking the icon in the toolbar.
 .. figure:: images//readme/qs6.png
     :alt: qs6.png
-    :width: 100 %
+    :width: 50 %
     :align: center
 
     * Open the QGIS application.
