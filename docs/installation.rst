@@ -8,11 +8,15 @@ To use this software Python and QGIS has to be installed on your system. The app
 Python Installation
 -------------------
 
-Go to `python.org <https://www.python.org/>`_ and download the current version for your system (Windows, macOS, Linux).
+Go to `python.org <https://www.python.org/downloads/>`_ and download the current version for your system (Windows, macOS, Linux).
 Follow the instructions for installation for installation.
 
 .. attention::
     Make sure to check the box for adding Python to PATH.
+.. figure:: images/python_to_path.png
+    :alt: fheat_logo.png
+    :width: 100 %
+    :align: center
 
 QGIS Installation
 -----------------
