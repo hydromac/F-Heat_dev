@@ -5,32 +5,72 @@ Installation
 
 To use this software Python and QGIS has to be installed on your system. The application is currently tested for Python versions > 3.9 and QGIS version > 3.3.
 
-Python Installation
--------------------
-
-Go to `python.org <https://www.python.org/downloads/>`_ and download the current version for your system (Windows, macOS, Linux).
-Follow the instructions for installation for installation.
-
-.. attention::
-    Make sure to check the box for adding Python to PATH.
-    .. figure:: images/python_to_path.png
-        :alt: fheat_logo.png
-        :width: 100 %
-        :align: center
-
 QGIS Installation
 -----------------
 
 Go to `qgis.org <https://qgis.org/>`_ and download the current version for your system.
+
+Python Installation
+-------------------
+
+The Plugin provides a function to automatically install the required python packages. Therefore python has to be installed on your device. Go to `python.org <https://www.python.org/downloads/>`_ and download the current version for your system (Windows, macOS, Linux).
+Follow the instructions for installation for installation. If you want to install the required packages manually you can skip the python download.
+
+.. attention::
+    Make sure to check the box for adding Python to PATH.
+    .. figure:: images/python_to_path.png
+        :alt: Python_to_path.png
+        :width: 100 %
+        :align: center
 
 Plugin Installation
 -------------------
 
 After installing Python and QGIS the plugin, as an extension of QGIS, has to be installed finally.
 
-.. TODO: Add Klickstrecke
-
 #. Official extension from QGIS:
+
+Once QGIS is installed, open QGIS Desktop.
+.. figure:: images//readme/qs0.png
+        :alt: qs0.png
+        :width: 100 %
+        :align: center
+
+Click on "Plugins" > "Manage and Install Plugins..."
+.. figure:: images//readme/qs1.png
+        :alt: qs1.png
+        :width: 100 %
+        :align: center
+
+Select "All", search for "FHeat" and install the Plugin.
+.. figure:: images//readme/qs2.png
+        :alt: qs2.png
+        :width: 100 %
+        :align: center
+
+If the plugin toolbar is not visible, right-click on an empty space in the toolbar and check the "Plugin Toolbar" box.
+.. figure:: images//readme/qs3.png
+        :alt: qs3.png
+        :width: 100 %
+        :align: center
+
+The plugin toolbar with the F|Heat icon will then become visible.
+.. figure:: images//readme/qs4.png
+        :alt: qs4.png
+        :width: 100 %
+        :align: center
+
+It is advisable to save the project before starting F|Heat, as the plugin utilizes the project directory to save files. The project can be saved by clicking the save icon or by selecting "Project" > "Save As...".
+.. figure:: images//readme/qs5.png
+        :alt: qs5.png
+        :width: 100 %
+        :align: center
+
+F|Heat starts by clicking the icon in the toolbar.
+.. figure:: images//readme/qs6.png
+        :alt: qs6.png
+        :width: 100 %
+        :align: center
 
     * Open the QGIS application.
     * Open the `Extension` panel.
