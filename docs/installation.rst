@@ -106,7 +106,7 @@ Alternatively, you can follow the steps from this guide and install the librarie
 `Installing Python packages in QGIS 3 (for Windows) <https://landscapearchaeology.org/2018/installing-python-packages-in-qgis-3-for-windows/>`_
 
 Once the button is clicked a terminal window will open and installation will begin. If you get an empty prompt and everything is installed without error messages, you can close the window.
-If an error occurs you can try to install the packages manually or check the Troubleshooting section.
+If an error occurs you can try to install the packages manually or check the :doc:`troubleshooting` section.
 
 .. warning::
     Do not close the terminal window during installation. Otherwise the process has to be repeated.
