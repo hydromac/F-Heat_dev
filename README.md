@@ -69,12 +69,13 @@ To install F|Heat and use the functionalities without QGIS, ensure you have Pyth
 
 ## Requirements
 For using the application as a plugin you need QGIS on your machine. The required Python packages are installed by using the plugin on your local machine.
+Alternatively you can install the packages yourself by following this guide on [Installing Python packages in QGIS 3.](https://landscapearchaeology.org/2018/installing-python-packages-in-qgis-3-for-windows/)
 
 ## Documentation
 
 All necessary steps are documented within the plugin. A detailed documentation about on installation, usage and methodology is available via the following link:
 
-**placeholder_link**
+[F|Heat readthedocs](https://fheat.readthedocs.io/en/latest/)
 
 ## Contributing
 
